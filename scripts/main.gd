@@ -144,7 +144,7 @@ func enter_room(room_id: String, from_room := "", focus_obj := "") -> void:
 	_build_room_geometry()
 	for o in World.objects_in_room(room_id):
 		_spawn(o.id)
-	var spawn := Vector3(0, 0.05, room.size[2] / 2.0 - 2.0)
+	var spawn := RoomShape.spawn_point(room)
 	var yaw := 0.0
 	var anchor := {}
 	if focus_obj != "":
@@ -160,6 +160,8 @@ func enter_room(room_id: String, from_room := "", focus_obj := "") -> void:
 		spawn.y = 0.05
 		# Depuis une porte : on regarde vers l'intérieur. Vers un objet : on le regarde.
 		yaw = atan2(-fwd.x, -fwd.z) if focus_obj == "" else atan2(fwd.x, fwd.z)
+		if not RoomShape.contains(room, spawn, 0.4):
+			spawn = RoomShape.clamp_inside(room, spawn, 0.5)
 	player.teleport(spawn, yaw)
 	World.visit_room(room_id)
 	var pid: String = room.portal_id
@@ -168,7 +170,7 @@ func enter_room(room_id: String, from_room := "", focus_obj := "") -> void:
 	portals.refresh()
 
 
-## (Re)construit murs/sol/plafond/lumières de la salle courante sans toucher aux objets.
+## (Re)construit murs/sol/plafond/lumières/ciel de la salle courante sans toucher aux objets.
 func _build_room_geometry() -> void:
 	if room_geo:
 		room_geo.free()
@@ -176,23 +178,21 @@ func _build_room_geometry() -> void:
 	room_geo = RoomBuilder.build(room, current_room == World.data.hub)
 	room_root.add_child(room_geo)
 	room_root.move_child(room_geo, 0)
-	var st := RoomBuilder.style_of(room)
-	env.ambient_light_color = Color(0.78, 0.75, 0.7).lerp(RoomBuilder.light_color(st), 0.6)
-	env.ambient_light_energy = 0.45 * clampf(RoomBuilder.light_energy(st) / 0.8, 0.35, 1.8)
+	RoomBuilder.apply_environment(env, room)
 	keep_player_inside()
 
 
-## Garde le joueur dans la salle (après redimensionnement, murs reconstruits…).
+## Garde le joueur dans la salle, selon sa vraie forme (redimensionnement, murs reconstruits…).
 func keep_player_inside() -> void:
 	if player == null or current_room == "":
 		return
-	var s: Array = World.data.rooms[current_room].size
-	var m := 0.5
+	var room: Dictionary = World.data.rooms[current_room]
 	var p := player.global_position
-	var hx := float(s[0]) / 2.0 - m
-	var hz := float(s[2]) / 2.0 - m
-	var q := Vector3(clampf(p.x, -hx, hx), maxf(p.y, 0.05), clampf(p.z, -hz, hz))
-	if q.y > float(s[1]) - 1.0:
+	var q := p
+	if not RoomShape.contains(room, p, 0.45):
+		q = RoomShape.clamp_inside(room, p, 0.5)
+	q.y = maxf(q.y, 0.05)
+	if q.y > RoomShape.dims(room).y - 1.0:
 		q.y = 0.05
 	if not q.is_equal_approx(p):
 		player.global_position = q
@@ -493,10 +493,10 @@ func _physics_process(_delta: float) -> void:
 	# Filet de sécurité : chute sous le sol ou sortie de la salle → retour à l'intérieur.
 	if player == null or current_room == "" or _travelling:
 		return
-	var s: Array = World.data.rooms[current_room].size
+	var room: Dictionary = World.data.rooms[current_room]
 	var p := player.global_position
-	if p.y < -2.0 or absf(p.x) > float(s[0]) / 2.0 + 1.0 or absf(p.z) > float(s[2]) / 2.0 + 1.0:
-		player.teleport(Vector3(0, 0.05, float(s[2]) / 2.0 - 2.0), 0.0)
+	if p.y < -2.0 or (not RoomShape.contains(room, p) and RoomShape.boundary_dist(room, p) > 1.0):
+		player.teleport(RoomShape.spawn_point(room), 0.0)
 		hud.toast("Vous avez été ramené dans la salle.")
 
 

@@ -238,12 +238,16 @@ func exists(kind: String, id: String) -> bool:
 
 # ------------------------------------------------------------------ salles & portails
 
-func create_room(room_name: String, portal_id := "", parent_id := "", size := [10.0, 4.0, 10.0], color := "") -> String:
+## fields : personnalisation optionnelle appliquée avant la pose des portes (forme…).
+func create_room(room_name: String, portal_id := "", parent_id := "", size := [10.0, 4.0, 10.0], color := "", fields := {}) -> String:
 	var id := new_id("room")
 	if color == "":
 		color = data.portals[portal_id].color if data.portals.has(portal_id) else "#cfc8bc"
 	data.rooms[id] = {"id": id, "name": room_name, "portal_id": portal_id, "parent_id": parent_id,
 		"size": size, "color": color, "created": now()}
+	for k in fields:
+		if not k in ["id", "name", "portal_id", "parent_id", "size", "color", "created"]:
+			data.rooms[id][k] = fields[k]
 	_touch("room", id, "created")
 	if parent_id != "" and data.rooms.has(parent_id):
 		_add_door(parent_id, id)
@@ -299,7 +303,8 @@ func delete_room(id: String) -> bool:
 
 
 ## Champs optionnels de personnalisation d'une salle (absents des anciennes sauvegardes) :
-## wall_color, floor_color, ceil_color, floor_mat, light, light_energy. size = [w, h, d].
+## voir RoomBuilder.STYLE_KEYS (couleurs, matériaux, lumière, forme, plafond, mezzanine,
+## fenêtres, ciel, horizon, moulures, gorges, poussière). size = [w, h, d].
 const FLOOR_MATS := ["bois", "beton", "moquette", "carrelage", "marbre", "uni"]
 const LIGHT_MOODS := ["chaude", "neutre", "froide", "tamisee"]
 const ROOM_PRESETS := {
@@ -316,17 +321,92 @@ func update_room(id: String, fields: Dictionary) -> void:
 	if not data.rooms.has(id):
 		return
 	var r: Dictionary = data.rooms[id]
+	var old := r.duplicate(true)
 	if fields.has("size"):
 		var ns: Array = fields["size"]
 		var nsz := [clampf(float(ns[0]), 4.0, 40.0), clampf(float(ns[1]), 2.6, 12.0), clampf(float(ns[2]), 4.0, 40.0)]
-		_refit_objects(id, r["size"], nsz)
+		if RoomShape.kind(r) == "rect" and str(fields.get("shape", "rect")) == "rect":
+			_refit_objects(id, r["size"], nsz)
 		r["size"] = nsz
 	for k in fields:
 		if k == "name":
 			rename_room(id, fields.name)
 		elif k != "size":
 			r[k] = fields[k]
+	if RoomShape.kind(old) != RoomShape.kind(r) or (RoomShape.kind(r) != "rect" and fields.has("size")) \
+			or bool(old.get("mezzanine", false)) != bool(r.get("mezzanine", false)):
+		_fit_to_shape(id, old)
 	_touch("room", id, "updated")
+
+
+## Après un changement de forme : objets accrochés à un mur → mur le plus proche de la
+## nouvelle forme (même retrait) ; objets au sol hors de la forme → ramenés dedans.
+func _fit_to_shape(room_id: String, old_room: Dictionary) -> void:
+	var room: Dictionary = data.rooms[room_id]
+	var os := RoomShape.dims(old_room)
+	var ns := RoomShape.dims(room)
+	var sx := ns.x / os.x
+	var sz := ns.z / os.z
+	var old_walls := RoomShape.walls(old_room)
+	var new_walls := RoomShape.walls(room)
+	var placed_doors := []
+	for o in objects_in_room(room_id):
+		var p := vec(o.pos)
+		var size3: Vector3 = ObjectRegistry.get_def(o.type).size * vec(o.scale)
+		var q := Vector2(p.x, p.z)
+		var near := _nearest_wall(old_walls, q)
+		var w_old: Dictionary = old_walls[near.i]
+		var rot := vec(o.rot)
+		var attached: bool = o.type in ["door", "portal"] or (near.dist < 0.6 and absf(wrapf(rot.y - float(w_old.rot), -180.0, 180.0)) < 15.0)
+		var nq := Vector2(q.x * sx, q.y * sz)
+		var np := p
+		if attached:
+			var inset := maxf((q - (w_old.mid as Vector2)).dot(w_old.n), 0.02)
+			var tgt := _nearest_wall(new_walls, nq)
+			var w: Dictionary = new_walls[tgt.i]
+			var half := size3.x / 2.0 + 0.05
+			var slot := {}
+			if float(w.len) >= half * 2.0:
+				var t := clampf(tgt.t, -float(w.len) / 2.0 + half, float(w.len) / 2.0 - half)
+				var p2: Vector2 = w.mid + w.dir * t + w.n * inset
+				slot = {"pos": Vector3(p2.x, p.y, p2.y), "rot": float(w.rot)}
+			if o.type in ["door", "portal"]:
+				var clash := slot.is_empty()
+				for d in placed_doors:
+					if not clash and Vector2(d.x, d.z).distance_to(Vector2(slot.pos.x, slot.pos.z)) < 2.2:
+						clash = true
+				if not clash and not RoomShape.reserved(room).is_empty():
+					for rr in RoomShape.reserved(room):
+						if (rr as Rect2).has_point(Vector2(slot.pos.x, slot.pos.z)):
+							clash = true
+				if clash:
+					o.pos = v2a(Vector3(9999, 0, 9999)) # ne se gêne pas lui-même
+					slot = find_wall_slot(room_id, inset, p.y)
+				placed_doors.append(slot.pos)
+			if slot.is_empty():
+				slot = find_wall_slot(room_id, inset, p.y)
+			np = slot.pos
+			rot.y = slot.rot
+		else:
+			var reach := minf(maxf(size3.x, size3.z) / 2.0, 1.0)
+			np = Vector3(nq.x, p.y, nq.y)
+			if not RoomShape.contains(room, np, reach):
+				np = RoomShape.clamp_inside(room, np, reach + 0.05)
+		np.y = clampf(np.y, 0.0, maxf(ns.y - size3.y, 0.0))
+		o.pos = v2a(np)
+		o.rot = v2a(rot)
+		_touch("object", o.id, "updated")
+
+
+func _nearest_wall(walls: Array, q: Vector2) -> Dictionary:
+	var best := {"i": 0, "dist": INF, "t": 0.0}
+	for i in walls.size():
+		var w: Dictionary = walls[i]
+		var c := Geometry2D.get_closest_point_to_segment(q, w.a, w.b)
+		var dd := c.distance_to(q)
+		if dd < best.dist:
+			best = {"i": i, "dist": dd, "t": (q - (w.mid as Vector2)).dot(w.dir)}
+	return best
 
 
 func _refit_objects(room_id: String, old_size: Array, new_size: Array) -> void:
@@ -385,23 +465,53 @@ func _add_door(room_id: String, target_id: String, type := "door") -> String:
 	return create_object(type, room_id, slot.pos, Vector3(0, slot.rot, 0), Vector3.ONE, "", {}, {"target_room": target_id})
 
 
-## Cherche un emplacement libre le long des murs (portes, grands tableaux).
+## Cherche un emplacement libre le long des murs (portes, grands tableaux), quelle que
+## soit la forme : segments de RoomShape.walls, hors mezzanine/escalier et fenêtres.
 func find_wall_slot(room_id: String, inset := 0.05, y := 0.0) -> Dictionary:
-	var s = data.rooms[room_id].size
-	var hw: float = s[0] / 2.0
-	var hd: float = s[2] / 2.0
-	var walls := [[Vector3(0, y, -hd + inset), Vector3.RIGHT, 0.0, hw], [Vector3(-hw + inset, y, 0), Vector3.BACK, 90.0, hd],
-		[Vector3(hw - inset, y, 0), Vector3.BACK, -90.0, hd], [Vector3(0, y, hd - inset), Vector3.RIGHT, 180.0, hw]]
+	var room: Dictionary = data.rooms[room_id]
+	var walls := RoomShape.walls(room).duplicate()
+	# Ordre historique : nord, ouest, est, sud ; puis les autres, les plus longs d'abord.
+	var prio := func(w: Dictionary) -> int:
+		var nn: Vector2 = w.n
+		if nn.y > 0.7: return 0
+		if nn.x > 0.7: return 1
+		if nn.x < -0.7: return 2
+		if nn.y < -0.7: return 3
+		return 4
+	walls.sort_custom(func(a, b):
+		var pa: int = prio.call(a)
+		var pb: int = prio.call(b)
+		return pa < pb if pa != pb else float(a.len) > float(b.len))
+	var reserved := RoomShape.reserved(room)
+	var all_walls := RoomShape.walls(room)
+	var spans := RoomShape.window_spans(room, objects_in_room(room_id))
 	var cands := []
 	for w in walls:
+		var half: float = float(w.len) / 2.0
+		if half < 0.75:
+			continue
+		var wi := all_walls.find(w)
 		var offs := [0.0]
 		var k := 3.0
-		while k < w[3] - 1.4:
+		while k < half - 1.4:
 			offs.append(-k)
 			offs.append(k)
 			k += 3.0
 		for o in offs:
-			cands.append({"pos": w[0] + w[1] * o, "rot": w[2]})
+			var p2: Vector2 = w.mid + w.dir * o + w.n * inset
+			var bad := false
+			for rr in reserved:
+				if (rr as Rect2).has_point(p2):
+					bad = true
+			for sp in spans:
+				if sp.wall == wi and o > sp.t0 - 0.8 and o < sp.t1 + 0.8:
+					bad = true
+			if not bad:
+				cands.append({"pos": Vector3(p2.x, y, p2.y), "rot": float(w.rot)})
+	if cands.is_empty():
+		var w0: Dictionary = walls[0]
+		var p0: Vector2 = w0.mid + w0.n * inset
+		return {"pos": Vector3(p0.x, y, p0.y), "rot": float(w0.rot)}
 	var occupied := objects_in_room(room_id).filter(func(o): return o.type in ["door", "portal", "whiteboard", "kanban", "library"])
 	for c in cands:
 		var free := true

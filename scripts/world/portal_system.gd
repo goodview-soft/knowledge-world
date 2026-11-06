@@ -205,12 +205,12 @@ func _make_entry(o: Dictionary, target: String, offset: Vector3) -> Entry:
 			exit_found = true
 			break
 	if not exit_found:
-		e.exit_xf = Transform3D(Basis(Vector3.UP, PI), Vector3(0, 0, float(room.size[2]) / 2.0 - 2.0))
+		e.exit_xf = Transform3D(Basis(Vector3.UP, PI), RoomShape.spawn_point(room) - Vector3(0, 0.05, 0))
 	# Aperçu de la salle cible.
 	e.preview = Node3D.new()
 	add_child(e.preview)
 	e.preview.global_position = offset
-	var geo := RoomBuilder.build(room, target == World.data.hub)
+	var geo := RoomBuilder.build(room, target == World.data.hub, true)
 	e.preview.add_child(geo)
 	if exit_found:
 		_hide_near_exit(geo, e.exit_xf)
@@ -219,6 +219,7 @@ func _make_entry(o: Dictionary, target: String, offset: Vector3) -> Entry:
 			var n := KWObject.new()
 			e.preview.add_child(n)
 			n.setup(t.id)
+	_set_layer(e.preview) # hors du soleil de la salle courante
 	# Caméra virtuelle.
 	e.vp = SubViewport.new()
 	e.vp.render_target_update_mode = SubViewport.UPDATE_DISABLED
@@ -227,6 +228,7 @@ func _make_entry(o: Dictionary, target: String, offset: Vector3) -> Entry:
 	e.cam.near = 0.05
 	e.cam.far = 120.0
 	var env: Environment = main.env.duplicate()
+	RoomBuilder.apply_environment(env, room)
 	env.tonemap_mode = Environment.TONE_MAPPER_LINEAR
 	env.glow_enabled = false
 	e.cam.environment = env
@@ -250,22 +252,25 @@ func _make_entry(o: Dictionary, target: String, offset: Vector3) -> Entry:
 	return e
 
 
-## Retire de l'aperçu le mur (et les moulures) derrière la porte de sortie,
-## pour que la caméra virtuelle, placée « derrière » la porte, voie la salle.
+## Retire de l'aperçu les murs (nœuds kw_wall de RoomBuilder) situés derrière le plan de
+## la porte de sortie, pour que la caméra virtuelle, placée « derrière », voie la salle.
 func _hide_near_exit(geo: Node3D, exit_xf: Transform3D) -> void:
 	var n := exit_xf.basis.z
 	for c in geo.get_children():
-		if c is Node3D and not c is Light3D:
+		if c is Node3D and c.has_meta("kw_wall"):
 			var p: Vector3 = (c as Node3D).position
-			var size := Vector3.ZERO
-			if c is StaticBody3D:
-				for cs in c.get_children():
-					if cs is CollisionShape3D and cs.shape is BoxShape3D:
-						size = cs.shape.size
-			if absf((p - exit_xf.origin).dot(n)) < 0.4 and (size == Vector3.ZERO or absf(size.dot(n.abs())) < 0.5):
+			if (p - exit_xf.origin).dot(n) < 0.35:
 				(c as Node3D).visible = false
-				if c is StaticBody3D:
-					c.collision_layer = 0
+				for b in c.get_children():
+					if b is StaticBody3D:
+						b.collision_layer = 0
+
+
+static func _set_layer(n: Node) -> void:
+	if n is VisualInstance3D:
+		(n as VisualInstance3D).layers = 2
+	for c in n.get_children():
+		_set_layer(c)
 
 # ------------------------------------------------------------------ mise à jour
 
