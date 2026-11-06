@@ -13,6 +13,7 @@ var env: Environment
 var dim: ColorRect
 var relation_lines: MeshInstance3D
 var portals: PortalSystem
+var title: TitleScreen = null
 var nodes := {} # obj_id -> KWObject
 var current_room := ""
 var panel: KWPanel = null
@@ -57,8 +58,15 @@ func _ready() -> void:
 	get_window().files_dropped.connect(import_files)
 	enter_room(World.data.hub)
 	create_tween().tween_property(fade, "color:a", 0.0, 1.0)
-	_capture(true)
 	var args := OS.get_cmdline_user_args()
+	var direct := false
+	for a in args:
+		if a.begins_with("--kw-save=") or a == "--kw-test" or a.begins_with("--kw-shot"):
+			direct = true
+	if direct:
+		_capture(true)
+	else:
+		show_title.call_deferred()
 	if "--kw-test" in args:
 		SelfTest.run.call_deferred(self)
 	for a in args:
@@ -391,7 +399,41 @@ func _capture(on: bool) -> void:
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED if on else Input.MOUSE_MODE_VISIBLE
 
 
+## Écran d'accueil (choix du monde). Le monde courant tourne en fond.
+func show_title() -> void:
+	close_panel()
+	build.cancel()
+	if build.active:
+		build.toggle()
+	World.save_world()
+	if title != null:
+		return
+	title = TitleScreen.new()
+	ui_root.add_child(title)
+	hud.visible = false
+	player.enabled = false
+	_capture(false)
+
+
+func start_world(path: String) -> void:
+	if path != World.save_path:
+		World.open_world(path)
+	KWSettings.set_value("last_world", path)
+	KWSettings.save_settings()
+	if title != null:
+		title.queue_free()
+		title = null
+	hud.visible = true
+	player.enabled = true
+	fade.color.a = 1.0
+	enter_room(World.data.hub)
+	create_tween().tween_property(fade, "color:a", 0.0, 0.8)
+	_capture(true)
+
+
 func _input(event: InputEvent) -> void:
+	if title != null:
+		return
 	if event is InputEventKey and event.pressed and event.keycode == KEY_ESCAPE:
 		if panel != null:
 			close_panel()
@@ -405,7 +447,7 @@ func _input(event: InputEvent) -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
-	if panel != null:
+	if panel != null or title != null:
 		return
 	if event is InputEventMouseButton and event.pressed and Input.mouse_mode != Input.MOUSE_MODE_CAPTURED:
 		_capture(true)
@@ -454,7 +496,7 @@ func _physics_process(_delta: float) -> void:
 
 
 func _process(_delta: float) -> void:
-	if panel != null or _travelling:
+	if panel != null or _travelling or title != null:
 		hud.set_hint("")
 		return
 	var id := aimed_object_id()

@@ -19,9 +19,16 @@ var _counter := 0
 
 
 func _ready() -> void:
+	var forced := false
 	for a in OS.get_cmdline_user_args():
 		if a.begins_with("--kw-save="):
 			save_path = a.substr(10)
+			forced = true
+			WORLDS_DIR = save_path.get_base_dir().path_join("worlds")
+	if not forced:
+		var last = KWSettings.get_value("last_world")
+		if last is String and last != "" and FileAccess.file_exists(last):
+			save_path = last
 	if not load_world():
 		seed_world()
 		save_world()
@@ -85,6 +92,99 @@ func _migrate() -> void:
 				o.name = "Conscience"
 				_dirty = true
 				break
+
+# ------------------------------------------------------------------ mondes (sauvegardes multiples)
+## Chaque monde = un fichier JSON indépendant. L'ancienne sauvegarde
+## (user://knowledge_world.json) reste à sa place et apparaît comme un monde.
+
+const LEGACY_PATH := "user://knowledge_world.json"
+var WORLDS_DIR := "user://worlds" # en test : à côté de la sauvegarde de test
+
+
+func list_worlds() -> Array:
+	var paths := []
+	if FileAccess.file_exists(LEGACY_PATH):
+		paths.append(LEGACY_PATH)
+	var dir := DirAccess.open(WORLDS_DIR)
+	if dir != null:
+		for f in dir.get_files():
+			if f.ends_with(".json"):
+				paths.append(WORLDS_DIR.path_join(f))
+	if not save_path in paths and FileAccess.file_exists(save_path):
+		paths.append(save_path)
+	var out := []
+	for p in paths:
+		var d = data if p == save_path else JSON.parse_string(FileAccess.get_file_as_string(p))
+		if not d is Dictionary:
+			continue
+		out.append({"path": p, "name": d.get("world_name", "Mon monde"),
+			"modified": FileAccess.get_modified_time(p), "rooms": d.get("rooms", {}).size(),
+			"objects": d.get("objects", {}).size(), "documents": d.get("documents", {}).size()})
+	out.sort_custom(func(a, b): return a.modified > b.modified)
+	return out
+
+
+func open_world(path: String) -> void:
+	if _dirty:
+		save_world()
+	save_path = path
+	if not load_world():
+		seed_world()
+		save_world()
+	changed.emit("world", "", "loaded")
+
+
+func create_world(world_name: String, demo := true) -> String:
+	if _dirty:
+		save_world()
+	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(WORLDS_DIR))
+	save_path = WORLDS_DIR.path_join(new_id("world") + ".json")
+	if demo:
+		seed_world()
+	else:
+		data = _empty()
+		data.hub = create_room("Hub central", "", "", [20.0, 6.0, 20.0], "#d9d2c5")
+		data.orb_migrated = true
+		create_object("orb", data.hub, Vector3(0, 0, 1.5), Vector3.ZERO, Vector3.ONE, "Conscience")
+	data.world_name = world_name
+	save_world()
+	return save_path
+
+
+func rename_world(path: String, world_name: String) -> void:
+	if path == save_path:
+		data.world_name = world_name
+		save_world()
+		return
+	var d = JSON.parse_string(FileAccess.get_file_as_string(path))
+	if d is Dictionary:
+		d.world_name = world_name
+		var f := FileAccess.open(path, FileAccess.WRITE)
+		f.store_string(JSON.stringify(d, "\t"))
+
+
+func duplicate_world(path: String) -> String:
+	if path == save_path and _dirty:
+		save_world()
+	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(WORLDS_DIR))
+	var dest := WORLDS_DIR.path_join(new_id("world") + ".json")
+	var d = JSON.parse_string(FileAccess.get_file_as_string(path))
+	if d is Dictionary:
+		d.world_name = str(d.get("world_name", "Mon monde")) + " (copie)"
+		var f := FileAccess.open(dest, FileAccess.WRITE)
+		f.store_string(JSON.stringify(d, "\t"))
+	return dest
+
+
+## Supprime un monde (jamais celui ouvert). Une copie .bak est conservée.
+func delete_world(path: String) -> bool:
+	if path == save_path:
+		return false
+	var abs_path := ProjectSettings.globalize_path(path)
+	DirAccess.copy_absolute(abs_path, abs_path + ".deleted.bak")
+	DirAccess.remove_absolute(abs_path)
+	DirAccess.remove_absolute(abs_path + ".bak")
+	return true
 
 # ------------------------------------------------------------------ utilitaires
 

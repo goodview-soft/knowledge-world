@@ -10,6 +10,7 @@ func _init() -> void:
 		["◎   Carte du monde", func(): main.open_panel(MapPanel.new())],
 		["✎   Personnaliser la salle", func(): main.open_panel(RoomPanel.new(main.current_room))],
 		["⚙   Paramètres", func(): main.open_panel(SettingsPanel.new())],
+		["⌂   Écran d'accueil · mondes", func(): main.show_title()],
 		["?    Raccourcis", func():
 			closed.emit()
 			main.hud.help.visible = true],

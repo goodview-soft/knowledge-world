@@ -325,12 +325,30 @@ static func run(main) -> void:
 	check(main.player.global_position.y > -1.0, "chute sous la carte → retour dans la salle")
 	W.data.rooms[W.data.hub].size = hs
 	W.changed.emit("room", W.data.hub, "updated")
+	# Mondes multiples + écran d'accueil.
+	var home: String = W.save_path
+	var wp: String = W.create_world("Monde test", false)
+	check(W.data.get("world_name", "") == "Monde test" and W.data.rooms.size() == 1, "nouveau monde vide créé")
+	check(W.list_worlds().any(func(w): return w.path == wp), "monde listé")
+	main.start_world(home)
+	await tree.process_frame
+	check(W.save_path == home and W.data.portals.size() >= 3, "retour au monde d'origine")
+	check(W.delete_world(wp) and not FileAccess.file_exists(wp), "suppression d'un monde")
+	check(not W.delete_world(home), "le monde ouvert ne peut pas être supprimé")
+	main.show_title()
+	await tree.process_frame
+	check(main.title != null, "écran d'accueil affiché")
+	main.start_world(home)
+	await tree.process_frame
+	check(main.title == null and main.current_room == W.data.hub, "écran d'accueil → monde")
 	print("SELFTEST ", "OK" if fails == 0 else "ÉCHECS : %d" % fails)
 	tree.quit(0 if fails == 0 else 1)
 
 
 static func shot(main, path: String) -> void:
 	var tree: SceneTree = main.get_tree()
+	if "--kw-shot-title" in OS.get_cmdline_user_args():
+		main.show_title()
 	# Option : --kw-shot-ui=map|room|pause|settings|build (pour juger l'interface).
 	for a in OS.get_cmdline_user_args():
 		if a.begins_with("--kw-shot-ui="):
