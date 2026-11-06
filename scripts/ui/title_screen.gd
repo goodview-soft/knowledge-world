@@ -8,6 +8,10 @@ var list_box: VBoxContainer
 var name_edit: LineEdit
 var demo_chk: CheckBox
 var _pending_delete := ""
+var upd_lbl: Label
+var upd_btn: Button
+var upd_action := ""
+static var _checked := false
 
 
 func _init() -> void:
@@ -47,6 +51,12 @@ func _init() -> void:
 	hint.text = "Dernier monde : %s" % World.data.get("world_name", "Mon monde")
 	hint.modulate.a = 0.6
 	left.add_child(hint)
+	var up := KWPanel.hbox(left)
+	upd_lbl = Label.new()
+	upd_lbl.text = "Version %s" % Updater.version
+	upd_lbl.modulate.a = 0.6
+	up.add_child(upd_lbl)
+	upd_btn = KWPanel.ghost(up, "Vérifier les mises à jour", _on_update_btn)
 	KWPanel.spacer(left)
 	var q := KWPanel.ghost(left, "Quitter", func(): World.save_world(); get_tree().quit())
 	q.custom_minimum_size = Vector2(160, 40)
@@ -82,6 +92,24 @@ func _init() -> void:
 func _ready() -> void:
 	main = get_tree().current_scene
 	_refresh()
+	Updater.status.connect(_on_update_status)
+	if not _checked and not "--kw-test" in OS.get_cmdline_user_args():
+		_checked = true
+		Updater.check()
+
+
+func _on_update_status(text: String, action: String) -> void:
+	upd_lbl.text = "Version %s · %s" % [Updater.version, text]
+	upd_action = action
+	upd_btn.text = {"update": "Mettre à jour", "download": "Télécharger", "restart": "Redémarrer"}.get(action, "Vérifier")
+
+
+func _on_update_btn() -> void:
+	match upd_action:
+		"update": Updater.download()
+		"download": Updater.open_releases()
+		"restart": Updater.restart()
+		_: Updater.check()
 
 
 func _process(delta: float) -> void:

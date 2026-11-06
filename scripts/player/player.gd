@@ -104,7 +104,7 @@ func apply_settings() -> void:
 
 
 func active() -> bool:
-	return enabled and (force_active or Input.mouse_mode == Input.MOUSE_MODE_CAPTURED)
+	return enabled and (force_active or OS.has_feature("mobile") or Input.mouse_mode == Input.MOUSE_MODE_CAPTURED)
 
 
 func set_reach(r: float) -> void:

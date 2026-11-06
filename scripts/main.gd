@@ -38,6 +38,8 @@ func _ready() -> void:
 	ui_root.add_child(hud)
 	chat = ChatOverlay.new()
 	hud.add_child(chat)
+	if OS.has_feature("mobile"):
+		ui_root.add_child(TouchControls.new())
 	dim = ColorRect.new()
 	dim.color = Color(0.02, 0.03, 0.05, 0.0)
 	dim.set_anchors_preset(Control.PRESET_FULL_RECT)
