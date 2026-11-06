@@ -78,8 +78,9 @@ func _level2(dir: BotDirector) -> int:
 		dir.sim(1.0)
 	fails += _chk(marta.node == wnode and not marta.is_moving(), "arrivée au travail")
 	# nuit : chez soi, caché
-	dir.clock.set_time(1, 23.5)
-	for i in 400:
+	dir.clock.set_time(1, 23.0)
+	dir.clock.day_length = 6000.0
+	for i in 1200:
 		dir.sim(0.5)
 	fails += _chk(marta.kind == "home" and marta.hidden, "nuit : chez soi (caché)")
 	# affinité modifiée par une rencontre
@@ -119,6 +120,7 @@ func _level2(dir: BotDirector) -> int:
 		if str(f["text"]).contains("cadeau") and str(f["source"]) == "Camille":
 			heard = true
 	fails += _chk(heard, "ragot : le voyageur a dit... (transmis)")
+	fails += _level3()
 	# sauvegarde / rechargement
 	var d: Dictionary = JSON.parse_string(JSON.stringify(dir.to_dict()))
 	var dir2 := BotDirector.new()
@@ -128,4 +130,57 @@ func _level2(dir: BotDirector) -> int:
 	var c2 := dir2.brain_of("Camille")
 	fails += _chk(dir2.clock.day == dir.clock.day and absf(dir2.clock.minutes - dir.clock.minutes) < 0.01, "sauvegarde : horloge")
 	fails += _chk(is_equal_approx(dir2.brain_of("Basile").aff("Léo"), bas.aff("Léo")) and c2.player_memory.size() == 1 and c2.home == cam.home and c2.pos.is_equal_approx(cam.pos), "sauvegarde : affinités, mémoire, foyer, position")
+	return fails
+
+
+## Les bots bougent, les véhicules avancent et roulent à droite, portes et campagne présentes.
+func _level3() -> int:
+	var fails := 0
+	var city := CityBuilder.new()
+	city.build(CityBuilder.load_config())
+	var d := BotDirector.new()
+	d.load_brains()
+	d.setup(city)
+	var start := {}
+	for b in d.brains:
+		start[b.bot_name] = b.pos + b.jitter
+	var cars0: Array = []
+	for c in city.traffic.cars:
+		cars0.append((c["pos"] as Vector3))
+	var right_ok := true
+	var min_gap := 99.0
+	var steps := 0
+	for i in 400:   # 40 s simulées
+		d.sim(0.1)
+		steps += 1
+		for c in city.traffic.cars:
+			if c["turn"]:
+				continue
+			var p: Vector3 = c["pos"]
+			var lp: float = (p.z - city.traffic._lpos(0, int(c["k"]))) if c["axis"] == 0 else (p.x - city.traffic._lpos(1, int(c["k"])))
+			var want: float = 2.5 * float(c["sg"]) if c["axis"] == 0 else -2.5 * float(c["sg"])
+			if absf(lp - want) > 0.05:
+				right_ok = false
+		for a in city.traffic.cars:
+			for o in city.traffic.cars:
+				if a != o:
+					min_gap = minf(min_gap, (a["pos"] as Vector3).distance_to(o["pos"]))
+	var moved := 0
+	var visible := 0
+	for b in d.brains:
+		if not b.hidden:
+			visible += 1
+			if (b.pos + b.jitter).distance_to(start[b.bot_name]) > 0.5:
+				moved += 1
+	fails += _chk(visible > 0 and moved * 2 >= visible, "les bots bougent (%d/%d visibles)" % [moved, visible])
+	var cm := 0
+	for i in cars0.size():
+		if (city.traffic.cars[i]["pos"] as Vector3).distance_to(cars0[i]) > 5.0:
+			cm += 1
+	fails += _chk(city.traffic.cars.size() >= 10 and cm * 2 >= cars0.size(), "les véhicules avancent (%d/%d)" % [cm, cars0.size()])
+	fails += _chk(right_ok, "les véhicules roulent à droite")
+	fails += _chk(min_gap > 1.5, "pas de collision (écart min %.1f m)" % min_gap)
+	fails += _chk(city.details.door_count == city.buildings.size() and city.details.sign_count >= 5, "portes (%d) et enseignes (%d)" % [city.details.door_count, city.details.sign_count])
+	fails += _chk(city.cols_n >= 11 and city.country != null and city.country.farm_count > 0 and city.country.tree_count > 0 and city.country.road_count > 0, "ville agrandie + campagne")
+	city.free()
 	return fails

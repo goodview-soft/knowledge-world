@@ -1,8 +1,8 @@
 {
 	"seed": 42,
 	"grid": {
-		"cols": 7,
-		"rows": 7
+		"cols": 11,
+		"rows": 11
 	},
 	"block_size": 40.0,
 	"street_width": 10.0,
@@ -121,7 +121,11 @@
 			"rue des Lilas",
 			"rue Pasteur",
 			"rue Hugo",
-			"rue Neuve"
+			"rue Neuve",
+			"rue des Peupliers",
+			"rue Voltaire",
+			"rue du Marché",
+			"rue Jaurès"
 		],
 		"ew": [
 			"rue de la Gare",
@@ -131,7 +135,11 @@
 			"rue Saint-Jean",
 			"rue du Lavoir",
 			"rue Basse",
-			"rue Haute"
+			"rue Haute",
+			"rue des Écoles",
+			"rue Carnot",
+			"rue de l'Église",
+			"rue Zola"
 		]
 	},
 	"places": [
@@ -201,5 +209,34 @@
 			"prep": "au",
 			"plaza": "n"
 		}
-	]
+	],
+	"traffic": {
+		"count": 16,
+		"speed": 6.0,
+		"major_every": 3,
+		"light_cycle": [
+			6.0,
+			2.0
+		]
+	},
+	"countryside": {
+		"seed": 7,
+		"radius": 900.0,
+		"field": [
+			60.0,
+			80.0
+		],
+		"farms": 8,
+		"trees": 500,
+		"hills": 14,
+		"palette": [
+			"#8fb55a",
+			"#a9c565",
+			"#c9b95a",
+			"#7aa04e",
+			"#b79a5e",
+			"#9bbd6d",
+			"#d2c27a"
+		]
+	}
 }

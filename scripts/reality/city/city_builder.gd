@@ -11,6 +11,8 @@ uniform sampler2D wall_tex : source_color, filter_linear_mipmap, repeat_enable;
 uniform vec4 tint : source_color = vec4(1.0);
 uniform vec4 win = vec4(1.4, 1.6, 3.2, 3.2); // largeur fenêtre, hauteur, pas horizontal, hauteur d'étage
 uniform float rough = 0.9;
+uniform float night = 0.0;
+varying float bseed;
 varying vec3 lp;
 varying vec3 nrm;
 varying float hgt;
@@ -19,6 +21,7 @@ void vertex() {
 	lp = VERTEX * s + vec3(0.0, s.y * 0.5, 0.0);
 	nrm = NORMAL;
 	hgt = s.y;
+	bseed = fract(sin(dot(MODEL_MATRIX[3].xz, vec2(12.9898, 78.233))) * 43758.5453);
 }
 void fragment() {
 	bool side = abs(nrm.y) < 0.5;
@@ -35,6 +38,8 @@ void fragment() {
 	ALBEDO = mix(col, vec3(0.16, 0.24, 0.32), m);
 	METALLIC = m * 0.3;
 	ROUGHNESS = mix(rough, 0.12, m);
+	float lit = step(0.55, fract(sin((floor(u / win.z) + floor(lp.y / win.w) * 7.0) * 12.9898 + bseed * 78.233) * 43758.5453));
+	EMISSION = vec3(1.0, 0.8, 0.5) * m * night * lit * 1.3;
 }
 """
 
@@ -49,6 +54,14 @@ var graph := CityGraph.new()    # graphe piéton (trottoirs, passages, portes)
 var buildings: Array = []       # {idx,pos,size,model,floors,block,role,name,prep,side,door,door_pos,address}
 var places: Dictionary = {}     # id -> {id,name,prep,role,door,door_pos,address}
 var lamp_mat: StandardMaterial3D
+var cols_n := 0
+var rows_n := 0
+var pitch := 50.0
+var wall_mats: Array = []
+var crossings: Array = []       # [Vector3 a, Vector3 b] : passages piétons (corner à corner)
+var details: CityDetails
+var traffic: Traffic
+var country: Countryside
 var _blocks := {}               # Vector2i -> {c, sides:{n,s,e,w: [[t,node]]}, corners:{}}
 var _ring := 18.75
 var _street_n := {}
@@ -79,7 +92,9 @@ func build(cfg: Dictionary) -> void:
 	var bs: float = float(cfg.get("block_size", 40.0))
 	var sw: float = float(cfg.get("street_width", 10.0))
 	var walk: float = float(cfg.get("sidewalk_width", 2.5))
-	var pitch := bs + sw
+	pitch = bs + sw
+	cols_n = cols
+	rows_n = rows
 	extent = maxf(cols, rows) * pitch * 0.5
 	var body := StaticBody3D.new()
 	body.collision_layer = 1
@@ -126,6 +141,19 @@ func build(cfg: Dictionary) -> void:
 	_buildings(lots, body)
 	_props_mesh(lamps, true)
 	_props_mesh(trees, false)
+	details = CityDetails.new()
+	details.name = "Details"
+	add_child(details)
+	details.build(self)
+	traffic = Traffic.new()
+	traffic.name = "Traffic"
+	add_child(traffic)
+	traffic.setup(self)
+	if config.has("countryside"):
+		country = Countryside.new()
+		country.name = "Countryside"
+		add_child(country)
+		country.build(self)
 
 
 ## Découpe un îlot en parcelles et y pose des bâtiments selon la densité.
@@ -199,7 +227,20 @@ func _wall_material(model: Dictionary) -> ShaderMaterial:
 		"tall": win = Vector4(0.9, minf(2.0, fh - 1.0), 2.2, fh)
 		"strip": win = Vector4(3.7, minf(1.4, fh - 1.4), 4.0, fh)
 	m.set_shader_parameter("win", win)
+	wall_mats.append(m)
 	return m
+
+
+## Fenêtres allumées la nuit.
+func set_night(on: bool) -> void:
+	for m in wall_mats:
+		m.set_shader_parameter("night", 1.0 if on else 0.0)
+
+
+func street_name(axis: int, k: int) -> String:
+	var streets: Dictionary = config.get("streets", {})
+	var arr: Array = streets.get("ns" if axis == 1 else "ew", ["rue"])
+	return str(arr[k % arr.size()])
 
 
 func _slab_mesh(xfs: Array, mat: Material) -> void:
@@ -454,9 +495,14 @@ func _finish_graph(cols: int, rows: int) -> void:
 				graph.link(arr[k][1], arr[k + 1][1])
 		var r: Vector2i = key + Vector2i(1, 0)
 		if _blocks.has(r):
-			graph.link(b.corners.ne, _blocks[r].corners.nw)
-			graph.link(b.corners.se, _blocks[r].corners.sw)
+			_cross(b.corners.ne, _blocks[r].corners.nw)
+			_cross(b.corners.se, _blocks[r].corners.sw)
 		var d: Vector2i = key + Vector2i(0, 1)
 		if _blocks.has(d):
-			graph.link(b.corners.sw, _blocks[d].corners.nw)
-			graph.link(b.corners.se, _blocks[d].corners.ne)
+			_cross(b.corners.sw, _blocks[d].corners.nw)
+			_cross(b.corners.se, _blocks[d].corners.ne)
+
+
+func _cross(a: int, b: int) -> void:
+	graph.link(a, b)
+	crossings.append([graph.pos(a), graph.pos(b)])

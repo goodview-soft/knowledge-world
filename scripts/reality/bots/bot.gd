@@ -105,19 +105,18 @@ func _process(delta: float) -> void:
 		_fade -= delta
 		if _fade < 1.0:
 			_label.modulate.a = maxf(0.0, _fade)
-	if detailed and brain.is_moving() and not busy:
+	if detailed and (brain.is_moving() or brain.is_wandering()) and not busy:
 		_t += delta * 8.0
 		_body.position.y = 0.7 + absf(sin(_t)) * 0.05
 
 ## Position interpolée depuis la simulation (pas de physique) ; détail réservé aux bots proches.
 func sync_from_brain(listener: Vector3, detail_dist: float) -> void:
-	var p := brain.pos + (brain.jitter if not brain.is_moving() else Vector3.ZERO)
-	position = p
+	position = brain.pos + brain.jitter
 	visible = not brain.hidden
 	var d := global_position.distance_to(listener)
 	detailed = d < detail_dist
 	set_process(detailed or _fade > 0.0)
-	if detailed and visible and brain.is_moving():
+	if detailed and visible and (brain.is_moving() or brain.is_wandering()):
 		rotation.y = atan2(-brain.dir.x, -brain.dir.z)
 	if not detailed:
 		_label.modulate.a = 0.0

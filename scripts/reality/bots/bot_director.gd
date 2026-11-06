@@ -19,6 +19,7 @@ var city: CityBuilder
 var events: Array = []
 var announced := {}
 var blackout := false
+var _night_on := false
 var _cooldown := 0.0
 var _conversing := false
 var _acc := 0.0
@@ -86,6 +87,17 @@ func setup(c: CityBuilder, events_path := EVENTS_PATH) -> void:
 	for b in brains:
 		var p := plan_for(b)
 		_apply_plan(b, p, true)
+	# départ vivant : deux bots sur trois sont déjà en route depuis chez eux
+	var i := 0
+	for b in brains:
+		b.wrng.seed = 100 + i
+		if i % 3 != 0 and not b.home.is_empty():
+			b.key = ""
+			b.node = int(b.home["node"])
+			b.pos = city.graph.pos(b.node)
+			_apply_plan(b, plan_for(b), false)
+			b.step(rng.randf_range(8.0, 40.0), city.graph)
+		i += 1
 
 func assign_homes() -> void:
 	var r := RandomNumberGenerator.new()
@@ -119,7 +131,7 @@ func assign_homes() -> void:
 			"desc": "au %s, %s, appartement %d" % [bd["address"], fl_txt, apt]}
 		br.work_id = br.work_id if city.places.has(br.work_id) else str(city.places.keys()[0])
 	for b in brains:
-		b.jitter = Vector3((brains.find(b) % 5 - 2) * 0.7, 0, (brains.find(b) / 5 % 3 - 1) * 0.5)
+		b.jitter = Vector3.ZERO
 
 func place_of(id: String) -> Dictionary:
 	return city.places.get(id, {})
@@ -231,12 +243,18 @@ func _process(delta: float) -> void:
 func sim(delta: float) -> void:
 	clock.advance(delta)
 	_cooldown -= delta
+	if city.traffic != null:
+		city.traffic.sim(delta)
+	var nt := clock.hour() >= 19.0 or clock.hour() < 7.0
+	if nt != _night_on:
+		_night_on = nt
+		city.set_night(nt)
 	for b in brains:
 		b.decay(delta * 0.002)
 		var bot = _by_name.get(b.bot_name)
 		if bot == null or not bot.busy:
 			b.step(delta, city.graph)
-		b.hidden = b.path.is_empty() and b.kind == "home" and clock.is_night()
+		b.hidden = b.path.is_empty() and (b.kind == "work" or b.kind == "visit" or (b.kind == "home" and clock.is_night()))
 	for bot in bots:
 		if is_instance_valid(bot):
 			bot.sync_from_brain(listener, DETAIL_DIST)

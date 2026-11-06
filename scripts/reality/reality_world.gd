@@ -38,14 +38,14 @@ func _init() -> void:
 	body.collision_mask = 0
 	var cs := CollisionShape3D.new()
 	var bs := BoxShape3D.new()
-	bs.size = Vector3(800, 2, 800)
+	bs.size = Vector3(2800, 2, 2800)
 	cs.shape = bs
 	cs.position.y = -1.0
 	body.add_child(cs)
 	add_child(body)
 	var mi := MeshInstance3D.new()
 	var pm := PlaneMesh.new()
-	pm.size = Vector2(800, 800)
+	pm.size = Vector2(620, 620)
 	mi.mesh = pm
 	var sh := Shader.new()
 	sh.code = FLOOR_SHADER
@@ -74,6 +74,8 @@ func _ready() -> void:
 	if World.data.has("bots"):
 		director.from_dict(World.data.bots)
 	director.spawn_in(self)
+	if "--kw-probe" in OS.get_cmdline_user_args():
+		_probe_t = 0.0
 	_hud = CanvasLayer.new()
 	_hud.layer = 5
 	_clock_label = Label.new()
@@ -93,6 +95,36 @@ func _ready() -> void:
 		if m != null and m.get("player") != null:
 			m.player.enabled = true
 			m._capture(true))
+
+
+var _probe_t := -1.0
+var _probe0 := {}
+
+
+func _probe_pos() -> Dictionary:
+	var d := {}
+	for b in director.bots:
+		d[b.name] = [b.global_position - ORIGIN, b.visible]
+	return d
+
+
+func _probe_tick(dt: float) -> void:
+	if _probe_t < 0.0:
+		return
+	if _probe0.is_empty():
+		_probe0 = _probe_pos()
+	_probe_t += dt
+	if _probe_t >= 20.0:
+		var now := _probe_pos()
+		var moved := 0
+		var vis := 0
+		for k in now:
+			if now[k][1]:
+				vis += 1
+			if (now[k][0] as Vector3).distance_to(_probe0[k][0]) > 0.5:
+				moved += 1
+		print("PROBE moved=%d/%d visible=%d tree_paused=%s clock=%s" % [moved, now.size(), vis, str(get_tree().paused), director.clock.text()])
+		get_tree().quit()
 
 
 func _main_player() -> KWPlayer:
@@ -139,6 +171,7 @@ func try_talk() -> bool:
 
 
 func _process(_dt: float) -> void:
+	_probe_tick(_dt)
 	var pl := _main_player()
 	if pl == null or director == null:
 		return

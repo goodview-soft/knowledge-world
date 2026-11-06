@@ -130,6 +130,10 @@ func is_moving() -> bool:
 
 ## Avance le long du chemin (positions locales ; graph : CityGraph).
 func step(delta: float, graph: CityGraph) -> void:
+	if path.is_empty():
+		_wander(delta)
+		return
+	jitter = Vector3.ZERO
 	var rem := SPEED * delta
 	while rem > 0.0 and not path.is_empty():
 		var tp: Vector3 = graph.pos(int(path[0]))
@@ -145,6 +149,28 @@ func step(delta: float, graph: CityGraph) -> void:
 			dir = to / dist
 			pos += dir * rem
 			rem = 0.0
+
+## Flânerie autour du point d'arrivée (dehors) : de petits trajets aléatoires.
+var wgoal := Vector3.ZERO
+var wait := 0.0
+var wrng := RandomNumberGenerator.new()
+
+func is_wandering() -> bool:
+	return not hidden and jitter.distance_to(wgoal) > 0.05
+
+func _wander(delta: float) -> void:
+	if hidden:
+		return
+	if jitter.distance_to(wgoal) > 0.05:
+		var to := wgoal - jitter
+		var d := minf(to.length(), SPEED * 0.6 * delta)
+		dir = to.normalized()
+		jitter += dir * d
+		return
+	wait -= delta
+	if wait <= 0.0:
+		wait = wrng.randf_range(1.5, 5.0)
+		wgoal = Vector3(wrng.randf_range(-3.0, 3.0), 0, wrng.randf_range(-2.0, 2.0))
 
 func note_player(text: String) -> void:
 	var sm := text.strip_edges().left(80)
