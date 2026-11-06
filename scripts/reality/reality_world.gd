@@ -270,12 +270,23 @@ func try_talk() -> bool:
 	return true
 
 
+var _door_scan := 0.0
+
+
 func _process(_dt: float) -> void:
 	_probe_tick(_dt)
 	var pl := _main_player()
 	if pl == null or director == null:
 		return
 	director.set_listener(pl.global_position)
+	_door_scan -= _dt
+	if _door_scan <= 0.0 and portals != null and city != null:
+		_door_scan = 0.5 # vrais battants créés à l'avance pour les portes proches (< 18 m)
+		for b in city.buildings:
+			if b["role"] == "residence" and b.has("plan"):
+				var dxf: Transform3D = portals.door_xf_of(b)
+				if dxf.origin.distance_to(pl.global_position) < 18.0:
+					portals.street_door(int(b["idx"]))
 	if portals != null and not portals.active and portals.is_inside(pl):
 		pl.teleport(ORIGIN + Vector3(0, 0.05, 3), 0.0) # sauvegarde reprise dans l'appartement : retour place
 	_hud.visible = _active()
