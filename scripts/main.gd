@@ -8,6 +8,9 @@ var ui_root: Control
 var build: BuildMode
 var fade: ColorRect
 var room_root: Node3D
+var room_geo: Node3D
+var env: Environment
+var dim: ColorRect
 var relation_lines: MeshInstance3D
 var nodes := {} # obj_id -> KWObject
 var current_room := ""
@@ -18,6 +21,7 @@ var _travelling := false
 func _ready() -> void:
 	_setup_input()
 	_setup_environment()
+	KWSettings.load_settings()
 	player = KWPlayer.new()
 	add_child(player)
 	var layer := CanvasLayer.new()
@@ -29,6 +33,12 @@ func _ready() -> void:
 	layer.add_child(ui_root)
 	hud = KWHud.new()
 	ui_root.add_child(hud)
+	dim = ColorRect.new()
+	dim.color = Color(0.02, 0.03, 0.05, 0.0)
+	dim.set_anchors_preset(Control.PRESET_FULL_RECT)
+	dim.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	ui_root.add_child(dim)
+	apply_settings()
 	fade = ColorRect.new()
 	fade.color = Color(0.02, 0.02, 0.03, 1.0)
 	fade.set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -65,7 +75,7 @@ func _setup_input() -> void:
 
 
 func _setup_environment() -> void:
-	var env := Environment.new()
+	env = Environment.new()
 	env.background_mode = Environment.BG_COLOR
 	env.background_color = Color(0.05, 0.05, 0.06)
 	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
@@ -108,12 +118,13 @@ func enter_room(room_id: String, from_room := "", focus_obj := "") -> void:
 	build.deselect()
 	if room_root:
 		room_root.free()
+	room_geo = null
 	nodes.clear()
 	current_room = room_id
 	var room: Dictionary = World.data.rooms[room_id]
 	room_root = Node3D.new()
 	add_child(room_root)
-	room_root.add_child(RoomBuilder.build(room, room_id == World.data.hub))
+	_build_room_geometry()
 	for o in World.objects_in_room(room_id):
 		_spawn(o.id)
 	var spawn := Vector3(0, 0.05, room.size[2] / 2.0 - 2.0)
@@ -137,6 +148,27 @@ func enter_room(room_id: String, from_room := "", focus_obj := "") -> void:
 	var pid: String = room.portal_id
 	hud.show_room_title(room.name, ("Portail · " + World.data.portals[pid].name) if World.data.portals.has(pid) else "Espace central")
 	_draw_relations()
+
+
+## (Re)construit murs/sol/plafond/lumières de la salle courante sans toucher aux objets.
+func _build_room_geometry() -> void:
+	if room_geo:
+		room_geo.free()
+	var room: Dictionary = World.data.rooms[current_room]
+	room_geo = RoomBuilder.build(room, current_room == World.data.hub)
+	room_root.add_child(room_geo)
+	room_root.move_child(room_geo, 0)
+	var st := RoomBuilder.style_of(room)
+	env.ambient_light_color = Color(0.78, 0.75, 0.7).lerp(RoomBuilder.light_color(st), 0.6)
+	env.ambient_light_energy = 0.45 * clampf(RoomBuilder.light_energy(st) / 0.8, 0.35, 1.8)
+
+
+## Applique les paramètres globaux (joueur, taille de l'UI).
+func apply_settings() -> void:
+	player.apply_settings()
+	var sc := float(KWSettings.get_value("ui_scale"))
+	if DisplayServer.get_name() != "headless":
+		get_window().content_scale_factor = sc
 
 
 func _spawn(id: String) -> void:
@@ -166,6 +198,8 @@ func _on_world_changed(kind: String, id: String, action: String) -> void:
 			if action == "deleted" and id == current_room:
 				enter_room(World.data.hub)
 			else:
+				if id == current_room and action == "updated":
+					_build_room_geometry()
 				_refresh_types(["door", "portal"])
 	if kind in ["relation", "object"]:
 		_draw_relations()
@@ -228,7 +262,9 @@ func open_panel(p: KWPanel) -> void:
 	p.closed.connect(close_panel)
 	ui_root.add_child(p)
 	player.enabled = false
+	hud.help.visible = false
 	_capture(false)
+	_fade_dim(0.45)
 
 
 func close_panel() -> void:
@@ -240,6 +276,17 @@ func close_panel() -> void:
 	p.queue_free()
 	player.enabled = true
 	_capture(true)
+	_fade_dim(0.0)
+
+
+var _dim_tw: Tween
+
+
+func _fade_dim(a: float) -> void:
+	if _dim_tw:
+		_dim_tw.kill()
+	_dim_tw = create_tween()
+	_dim_tw.tween_property(dim, "color:a", a, 0.18)
 
 
 func open_relations(kind: String, id: String) -> void:
@@ -286,7 +333,7 @@ func _input(event: InputEvent) -> void:
 		elif build.placing != "" or build.grabbing:
 			build.cancel()
 		else:
-			_capture(false)
+			open_panel(PauseMenu.new())
 		get_viewport().set_input_as_handled()
 
 
@@ -309,10 +356,18 @@ func _unhandled_input(event: InputEvent) -> void:
 		KEY_H: go_to_room(World.data.hub, current_room)
 		KEY_N: quick_note()
 		KEY_L: open_panel(LibraryPanel.new())
+		KEY_G:
+			if not build.active:
+				open_panel(GraphPanel.new())
 		KEY_F:
 			var id := aimed_object_id()
 			open_relations("object" if id != "" else "room", id if id != "" else current_room)
 		KEY_F1: hud.help.visible = not hud.help.visible
+		KEY_P: open_panel(RoomPanel.new(current_room))
+		KEY_T:
+			var id := aimed_object_id()
+			if id != "":
+				open_panel(ObjectStylePanel.new(id))
 		KEY_S:
 			if event.ctrl_pressed:
 				World.save_world()

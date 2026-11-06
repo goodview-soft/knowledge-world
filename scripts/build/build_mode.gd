@@ -38,19 +38,10 @@ func toggle() -> void:
 
 
 func _update_hud() -> void:
-	var lines := ["MODE CONSTRUCTION  (B pour quitter)", ""]
-	for i in ObjectRegistry.PALETTE.size():
-		var t: String = ObjectRegistry.PALETTE[i]
-		lines.append("%s%d  %s" % ["▶ " if placing == t else "   ", (i + 1) % 10, ObjectRegistry.get_def(t).label])
-	lines.append("")
-	lines.append("Clic : poser / sélectionner   Clic droit : annuler")
-	lines.append("G déplacer · R/molette pivoter · PgUp/PgDn taille")
-	lines.append("Ctrl+D dupliquer · Suppr supprimer · E éditer")
-	lines.append("X grille : %s" % ("oui" if snap else "non"))
+	var sel := ""
 	if selected != "" and World.data.objects.has(selected):
-		lines.append("")
-		lines.append("Sélection : " + World.label_of("object", selected) + ("  (déplacement…)" if grabbing else ""))
-	main.hud.set_build(active, "\n".join(lines))
+		sel = World.label_of("object", selected)
+	main.hud.set_build_state(active, placing, snap, sel, grabbing)
 
 
 func cancel() -> void:
@@ -188,6 +179,11 @@ func _unhandled_input(event: InputEvent) -> void:
 				snap = not snap
 				main.hud.toast("Alignement grille : " + ("activé" if snap else "désactivé"))
 			KEY_G: _toggle_grab()
+			KEY_T:
+				if selected != "" and World.data.objects.has(selected):
+					main.open_panel(ObjectStylePanel.new(selected))
+				else:
+					handled = false
 			KEY_R: _rotate(-1 if event.shift_pressed else 1)
 			KEY_PAGEUP, KEY_KP_ADD: _scale(1.1)
 			KEY_PAGEDOWN, KEY_KP_SUBTRACT: _scale(1.0 / 1.1)

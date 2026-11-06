@@ -83,9 +83,51 @@ static func run(main) -> void:
 	# Relations.
 	W.add_relation("room", rid, "room", W.data.hub, "dépendance", "test")
 	check(W.relations_of("room", W.data.hub).size() >= 1, "relation salle ↔ salle")
+	# Notes Obsidian : liens wiki, tags, relations synchronisées, rétroliens, graphe.
+	check(NoteLinks.parse_links("a [[Alpha]] b [[Beta|alias]] [[Alpha]] `[[Code]]`") == ["Alpha", "Beta"], "parsing des liens wiki (alias, doublons, code)")
+	check(NoteLinks.parse_tags("#idée et #projet/2026, pas#ça ni `#code`\n# Titre") == ["idée", "projet/2026"], "parsing des #tags")
+	var na: String = NoteLinks.create_note(entrance, "Alpha", "Lien vers [[Bêta]] et [[%s]] #test" % W.data.rooms[W.data.hub].name)
+	var nb: String = NoteLinks.create_note(W.data.hub, "Bêta", "Retour vers [[alpha]]")
+	check(NoteLinks.resolve("bêta") == {"kind": "object", "id": nb} and NoteLinks.resolve("Inconnue").is_empty(), "résolution des noms (casse) et lien inexistant")
+	var sa: Dictionary = NoteLinks.sync_relations(na)
+	check(sa.added == 2 and NoteLinks.wiki_relations(na).size() == 2, "relations wikilink ajoutées (note + salle)")
+	var hub_rel: String = W.add_relation("object", nb, "object", na, "source", "manuel")
+	NoteLinks.sync_relations(nb)
+	check(NoteLinks.wiki_relations(nb).is_empty(), "pas de doublon avec une relation manuelle")
+	check(NoteLinks.sync_relations(na).added == 0, "synchro idempotente")
+	check(NoteLinks.backlinks("object", na) == [nb] and NoteLinks.backlinks("object", nb) == [na], "rétroliens")
+	check(NoteLinks.notes_with_tag("#TEST") == [na], "recherche par tag")
+	var np := NotePanel.new(na)
+	main.open_panel(np)
+	await tree.process_frame
+	check(np.back_box.get_child_count() >= 1 and "url=wiki:" in np.preview.text, "panneau note : aperçu + rétroliens")
+	np.text_edit.text = "Plus de lien sauf [[Bêta]]\n- [ ] tâche"
+	np._on_meta("task:1")
+	check("- [x] tâche" in W.data.objects[na].content.text, "case à cocher cliquable")
+	check(NoteLinks.wiki_relations(na).size() == 1, "relation wikilink supprimée à la sauvegarde")
+	main.close_panel()
+	W.delete_relation(hub_rel)
+	var dn: String = NoteLinks.daily_note()
+	check(dn == NoteLinks.daily_note() and W.data.objects[dn].room_id == W.data.hub, "note du jour (unique, dans le hub)")
+	var gp := GraphPanel.new()
+	main.open_panel(gp)
+	await tree.process_frame
+	gp.graph.step()
+	check(gp.graph.nodes.size() >= W.data.rooms.size() + 3 and gp.graph.edges.size() > 0, "graphe construit (%d nœuds)" % gp.graph.nodes.size())
+	gp.mode = "notes"
+	gp.rebuild()
+	check(gp.graph.nodes.all(func(n): return n.type == "note"), "graphe : filtre notes seules")
+	main.close_panel()
+	var gk := InputEventKey.new()
+	gk.keycode = KEY_G
+	gk.pressed = true
+	main._unhandled_input(gk)
+	check(main.panel is GraphPanel, "touche G ouvre le graphe")
+	main.close_panel()
+	check(main.panel == null, "graphe fermé")
 	# Panneaux : instanciation / fermeture de chaque type.
 	for p in [NotePanel.new(nid), WhiteboardPanel.new(W.create_object("whiteboard", entrance, Vector3.ZERO)), KanbanPanel.new(k.id),
-			ChatPanel.new(desk), LibraryPanel.new(), MapPanel.new(), RelationPanel.new("room", rid), DoorPanel.new(doors[0].id)]:
+			ChatPanel.new(desk), LibraryPanel.new(), MapPanel.new(), GraphPanel.new("notes", "test"), RelationPanel.new("room", rid), DoorPanel.new(doors[0].id)]:
 		main.open_panel(p)
 		await tree.process_frame
 		main.close_panel()
@@ -96,6 +138,60 @@ static func run(main) -> void:
 	await tree.process_frame
 	main.build.toggle()
 	check(not main.build.active, "mode construction on/off")
+	# Personnalisation de salle (persistée) + redimensionnement qui garde les objets dedans.
+	main.enter_room(rid)
+	var far: String = W.create_object("table", rid, Vector3(4.0, 0, 4.0))
+	W.update_room(rid, W.ROOM_PRESETS["Nuit"])
+	W.update_room(rid, {"size": [6.0, 3.0, 6.0], "floor_mat": "bois"})
+	await tree.process_frame
+	var rs: Dictionary = W.data.rooms[rid]
+	check(rs.light == "tamisee" and rs.floor_mat == "bois" and float(rs["size"][0]) == 6.0, "salle personnalisée (préréglage + matériau + taille)")
+	var fp: Vector3 = W.vec(W.data.objects[far].pos)
+	check(absf(fp.x) <= 3.0 and absf(fp.z) <= 3.0, "objet recalé dans la salle redimensionnée")
+	var dp: Vector3 = W.vec(W.objects_in_room(rid).filter(func(o): return o.type == "door")[0].pos)
+	check(absf(absf(dp.x) - 3.0) < 0.6 or absf(absf(dp.z) - 3.0) < 0.6, "porte restée contre un mur")
+	check(main.room_geo != null and main.room_geo.is_inside_tree(), "géométrie de salle reconstruite")
+	# Style d'objet.
+	var lamp: String = W.create_object("lamp", rid, Vector3(0, 0, 0))
+	main.build.toggle()
+	main.build.select(lamp)
+	var sp := ObjectStylePanel.new(lamp)
+	main.open_panel(sp)
+	await tree.process_frame
+	sp._put("light_color", "#3366ff")
+	sp._put("primary", "#ff0000")
+	sp.name_edit.text = "Lampe bleue"
+	main.close_panel()
+	main.build.toggle()
+	await tree.process_frame
+	check(W.data.objects[lamp].params.style.light_color == "#3366ff" and W.data.objects[lamp].name == "Lampe bleue", "style d'objet persisté")
+	var lights: Array = main.nodes[lamp].find_children("*", "OmniLight3D", true, false)
+	check(lights.size() == 1 and lights[0].light_color.is_equal_approx(Color("#3366ff")), "style d'objet appliqué en 3D")
+	# Nouveaux panneaux : menu pause, paramètres, salle.
+	for p2 in [PauseMenu.new(), SettingsPanel.new(), RoomPanel.new(rid), MapPanel.new()]:
+		main.open_panel(p2)
+		await tree.process_frame
+		check(main.panel == p2, "panneau %s ouvert" % p2.get_class() if p2.get_script() == null else "panneau %s ouvert" % p2.get_script().get_global_name())
+		main.close_panel()
+	check(main.panel == null, "nouveaux panneaux fermés")
+	var esc := InputEventKey.new()
+	esc.keycode = KEY_ESCAPE
+	esc.pressed = true
+	main._input(esc)
+	check(main.panel is PauseMenu, "Échap ouvre le menu")
+	main._input(esc)
+	check(main.panel == null, "Échap referme le menu")
+	KWSettings.set_value("fov", 90.0)
+	main.apply_settings()
+	KWSettings.save_settings()
+	KWSettings.data = {}
+	KWSettings.load_settings()
+	check(is_equal_approx(main.player.cam.fov, 90.0) and float(KWSettings.get_value("fov")) == 90.0 and KWSettings.path.ends_with("settings_test.json"), "paramètres appliqués et sauvés (fichier de test)")
+	main.build.toggle()
+	main.build._start_placing("lamp")
+	check(main.hud.build_box.visible and main.hud.build_slots[8].theme_type_variation == "SlotActive", "barre d'outils : slot actif en surbrillance")
+	main.build.toggle()
+	main.enter_room(entrance)
 	# Suppression de salle + persistance.
 	check(W.delete_room(rid), "suppression de salle")
 	var counts := [W.data.rooms.size(), W.data.objects.size(), W.data.relations.size(), W.data.documents.size()]
@@ -112,6 +208,23 @@ static func run(main) -> void:
 
 static func shot(main, path: String) -> void:
 	var tree: SceneTree = main.get_tree()
+	# Option : --kw-shot-ui=map|room|pause|settings|build (pour juger l'interface).
+	for a in OS.get_cmdline_user_args():
+		if a.begins_with("--kw-shot-ui="):
+			var what := a.substr(13)
+			if "build" in what:
+				main.build.toggle()
+				main.build._start_placing("lamp")
+			match what.replace("build", "").trim_prefix("+"):
+				"map": main.open_panel(MapPanel.new())
+				"room": main.open_panel(RoomPanel.new(main.current_room))
+				"pause": main.open_panel(PauseMenu.new())
+				"settings": main.open_panel(SettingsPanel.new())
+				"graph": main.open_panel(GraphPanel.new())
+				"note":
+					var nn: String = NoteLinks.create_note(main.current_room, "Projet jardin", "# Projet jardin\n\nInspiré par [[Godot & 3D]] et [[Idée inexistante]].\n\n## Tâches\n- [x] Choisir les plantes\n- [ ] Dessiner le plan **au propre**\n- [ ] Lire `README`\n\n> Le jardin zen favorise la contemplation.\n\n#jardin #projet/2026")
+					NoteLinks.create_note(main.current_room, "Journal", "Voir [[Projet jardin]] #journal")
+					main.open_panel(NotePanel.new(nn))
 	await tree.create_timer(2.5).timeout
 	main.get_viewport().get_texture().get_image().save_png(path)
 	print("capture : ", path)

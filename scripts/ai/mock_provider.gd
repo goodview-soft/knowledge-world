@@ -7,7 +7,7 @@ func display_name() -> String:
 	return "Assistant simulé (local, sans IA)"
 
 
-func complete(ctx: Dictionary, _history: Array, cb: Callable) -> void:
+func complete(ctx: Dictionary, _history: Array, cb: Callable, _on_chunk := Callable()) -> void:
 	var q: String = ctx.question.to_lower()
 	var room: Dictionary = ctx.room
 	var res := {"text": "", "proposals": []}

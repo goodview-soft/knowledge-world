@@ -4,7 +4,10 @@ extends CharacterBody3D
 
 const SPEED := 3.0
 const SPRINT := 5.5
+const BASE_SENSITIVITY := 0.0022
 var sensitivity := 0.0022
+var speed_mult := 1.0
+var invert_y := false
 var enabled := true
 var force_active := false # tests headless
 var head: Node3D
@@ -35,6 +38,14 @@ func _init() -> void:
 	set_reach(3.5)
 
 
+## Applique les paramètres globaux (KWSettings).
+func apply_settings() -> void:
+	sensitivity = BASE_SENSITIVITY * float(KWSettings.get_value("sensitivity"))
+	speed_mult = float(KWSettings.get_value("speed"))
+	invert_y = bool(KWSettings.get_value("invert_y"))
+	cam.fov = float(KWSettings.get_value("fov"))
+
+
 func active() -> bool:
 	return enabled and (force_active or Input.mouse_mode == Input.MOUSE_MODE_CAPTURED)
 
@@ -53,13 +64,13 @@ func teleport(pos: Vector3, yaw: float) -> void:
 func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventMouseMotion and active():
 		rotate_y(-event.relative.x * sensitivity)
-		head.rotation.x = clampf(head.rotation.x - event.relative.y * sensitivity, -1.45, 1.45)
+		head.rotation.x = clampf(head.rotation.x - event.relative.y * sensitivity * (-1.0 if invert_y else 1.0), -1.45, 1.45)
 
 
 func _physics_process(delta: float) -> void:
 	var input := Input.get_vector("move_left", "move_right", "move_forward", "move_back") if active() else Vector2.ZERO
 	var dir := (transform.basis * Vector3(input.x, 0, input.y)).normalized()
-	var target := dir * (SPRINT if Input.is_action_pressed("sprint") else SPEED)
+	var target := dir * (SPRINT if Input.is_action_pressed("sprint") else SPEED) * speed_mult
 	var k := 1.0 - exp(-10.0 * delta)
 	velocity.x = lerpf(velocity.x, target.x, k)
 	velocity.z = lerpf(velocity.z, target.z, k)

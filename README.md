@@ -9,9 +9,9 @@ Test d'intégration (sauvegarde séparée, ne touche pas vos données) :
 Sauvegarde réelle : `user://knowledge_world.json` (+ `.bak`), auto-sauvegarde ~1 s après chaque modification, Ctrl+S.
 
 ## Contrôles
-ZQSD/flèches se déplacer · souris regarder · Maj courir · **E** interagir · Échap fermer/libérer la souris · clic reprendre la main
-**Tab** carte/recherche/favoris/récents/création · **H** hub · **N** note rapide · **L** bibliothèque · **F** relations (objet visé ou salle) · **F1** aide
-**B** construction : 1-0 choisir l'objet, clic poser · clic sélectionner · G déplacer · R/molette pivoter · PgUp/PgDn taille · Ctrl+D dupliquer · Suppr supprimer · X grille · clic droit annuler
+ZQSD/flèches se déplacer · souris regarder · Maj courir · **E** interagir · **Échap** fermer le panneau ouvert, sinon menu (reprendre, carte, salle, paramètres, quitter) · clic reprendre la main
+**Tab** carte/recherche/favoris/récents/création · **H** hub · **N** note rapide · **L** bibliothèque · **G** graphe · **F** relations (objet visé ou salle) · **P** personnaliser la salle · **T** style de l'objet visé · **F1** feuille de raccourcis
+**B** construction : 1-0 choisir l'objet, clic poser · clic sélectionner · G déplacer · R/molette pivoter · PgUp/PgDn taille · **T** style de la sélection · Ctrl+D dupliquer · Suppr supprimer · X grille · clic droit annuler (barre d'outils visuelle en bas d'écran)
 
 ## Fonctionnalités V1
 - Hub navigable, 3 portails, salle secondaire (Informatique → Godot & 3D), portes générées automatiquement.
@@ -24,8 +24,22 @@ ZQSD/flèches se déplacer · souris regarder · Maj courir · **E** interagir �
 - Transformations non destructives + historique : note → fiche / Kanban / salle, conversation → note, document → note.
 - Recherche globale (salles, contenus, documents), favoris, récents, téléportation.
 
+## Notes (inspirées d'Obsidian)
+- Éditeur Markdown : bascule **Édition / Partagé / Aperçu** ; aperçu rendu (titres, gras/italique, ~~barré~~, ==surligné==, listes, `- [ ]` cases cliquables, code, citations, liens).
+- Liens wiki `[[Nom]]` / `[[Nom|alias]]` vers une note, une salle ou un document, autocomplétion à la frappe de `[[` (↑↓, Entrée/Tab). Clic dans l'aperçu : ouvre la note (voyage si autre salle), la salle ou le document ; nom inexistant → proposition de créer la note.
+- Colonne latérale : #tags (chips), liens sortants, rétroliens. Les liens wiki deviennent des relations World « thématique » (description `wikilink`) synchronisées à chaque sauvegarde, sans doublonner les relations manuelles.
+- **G** (hors construction) ou bouton « Graphe » de la carte : graphe force-dirigé (salles, notes, documents ; arêtes = relations + hiérarchie), zoom molette, glisser, survol = voisins, clic = y aller, filtre « Notes seules » et par #tag.
+- « Note du jour » : note datée (AAAA-MM-JJ) créée/ouverte dans le hub.
+- Code : `scripts/notes/` (`NoteLinks`, `NoteMarkdown`, `KWGraphView`, `GraphPanel`).
+
+## Interface & personnalisation
+- Design system `KWTheme` (palette sombre, accent unique, variations PrimaryButton/GhostButton/DangerButton/Chip/Card…) et helpers `KWPanel` (`primary`, `card`, `slider`, `color_field`, `choice`…).
+- Salle (P) : couleurs murs/sol/plafond, matériau du sol (bois, béton, moquette, carrelage, marbre), ambiance lumineuse + intensité, dimensions (objets recalés, portes suivent leur mur), préréglages. Champs optionnels dans `rooms[id]`.
+- Objets (T) : nom, couleurs principale/secondaire, lampe : couleur/intensité — `params.style`.
+- Paramètres (menu Échap) : sensibilité, FOV, vitesse, inverser Y, taille de l'UI — `user://settings.json` (hors monde).
+
 ## Reste à faire
-Carte mentale, tableau comparatif, tableau de suivi, terminal/écran/statistiques · couloirs physiques entre salles (actuellement fondu enchaîné) · sons d'ambiance · PDF complexes / DOCX (backend) · backend RAG HTTP (FastAPI + Qdrant) · fournisseurs IA supplémentaires · annuler/rétablir global · réglages (sensibilité, FOV) · multi-sélection en construction.
+Carte mentale, tableau comparatif, tableau de suivi, terminal/écran/statistiques · couloirs physiques entre salles (actuellement fondu enchaîné) · sons d'ambiance · PDF complexes / DOCX (backend) · backend RAG HTTP (FastAPI + Qdrant) · fournisseurs IA supplémentaires · annuler/rétablir global · multi-sélection en construction.
 
 ## IA
 Par défaut : assistant simulé local. Pour Ollama local, créer `user://ai_config.json` :

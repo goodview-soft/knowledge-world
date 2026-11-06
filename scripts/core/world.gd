@@ -185,6 +185,66 @@ func delete_room(id: String) -> bool:
 	return true
 
 
+## Champs optionnels de personnalisation d'une salle (absents des anciennes sauvegardes) :
+## wall_color, floor_color, ceil_color, floor_mat, light, light_energy. size = [w, h, d].
+const FLOOR_MATS := ["bois", "beton", "moquette", "carrelage", "marbre", "uni"]
+const LIGHT_MOODS := ["chaude", "neutre", "froide", "tamisee"]
+const ROOM_PRESETS := {
+	"Bibliothèque calme": {"wall_color": "#5d6b5a", "floor_color": "#6b4a32", "ceil_color": "#e8e1d4", "floor_mat": "bois", "light": "chaude", "light_energy": 0.85},
+	"Atelier": {"wall_color": "#b9b4ab", "floor_color": "#7d7b77", "ceil_color": "#d8d6d2", "floor_mat": "beton", "light": "neutre", "light_energy": 1.1},
+	"Studio lumineux": {"wall_color": "#f2f1ee", "floor_color": "#d9d6cf", "ceil_color": "#ffffff", "floor_mat": "carrelage", "light": "froide", "light_energy": 1.4},
+	"Nuit": {"wall_color": "#232a3d", "floor_color": "#2c2f3a", "ceil_color": "#1b1f2b", "floor_mat": "moquette", "light": "tamisee", "light_energy": 0.7},
+}
+
+
+## Met à jour une salle (nom, couleurs, matériau, lumière, dimensions). Un redimensionnement
+## garde les objets dans les murs : ceux accrochés à un mur suivent ce mur.
+func update_room(id: String, fields: Dictionary) -> void:
+	if not data.rooms.has(id):
+		return
+	var r: Dictionary = data.rooms[id]
+	if fields.has("size"):
+		var ns: Array = fields["size"]
+		var nsz := [clampf(float(ns[0]), 4.0, 40.0), clampf(float(ns[1]), 2.6, 12.0), clampf(float(ns[2]), 4.0, 40.0)]
+		_refit_objects(id, r["size"], nsz)
+		r["size"] = nsz
+	for k in fields:
+		if k == "name":
+			rename_room(id, fields.name)
+		elif k != "size":
+			r[k] = fields[k]
+	_touch("room", id, "updated")
+
+
+func _refit_objects(room_id: String, old_size: Array, new_size: Array) -> void:
+	var ohw: float = float(old_size[0]) / 2.0
+	var ohd: float = float(old_size[2]) / 2.0
+	var nhw: float = float(new_size[0]) / 2.0
+	var nhd: float = float(new_size[2]) / 2.0
+	var nh: float = float(new_size[1])
+	for o in objects_in_room(room_id):
+		var p := vec(o.pos)
+		var half: Vector3 = ObjectRegistry.get_def(o.type).size * vec(o.scale) / 2.0
+		var reach := maxf(half.x, half.z)
+		# Collé à un mur (à moins de 0,6 m) : on conserve la distance à ce mur.
+		if absf(absf(p.x) - ohw) < 0.6:
+			p.x = signf(p.x) * (nhw - (ohw - absf(p.x)))
+		if absf(absf(p.z) - ohd) < 0.6:
+			p.z = signf(p.z) * (nhd - (ohd - absf(p.z)))
+		var mx := maxf(nhw - minf(reach, nhw * 0.5), 0.0)
+		var mz := maxf(nhd - minf(reach, nhd * 0.5), 0.0)
+		if absf(absf(p.x) - nhw) > 0.6:
+			p.x = clampf(p.x, -mx, mx)
+		if absf(absf(p.z) - nhd) > 0.6:
+			p.z = clampf(p.z, -mz, mz)
+		p.x = clampf(p.x, -nhw, nhw)
+		p.z = clampf(p.z, -nhd, nhd)
+		p.y = clampf(p.y, 0.0, maxf(nh - half.y * 2.0, 0.0))
+		if not p.is_equal_approx(vec(o.pos)):
+			o.pos = v2a(p)
+			_touch("object", o.id, "updated")
+
+
 func child_rooms(parent_id: String) -> Array:
 	return data.rooms.values().filter(func(r): return r.parent_id == parent_id)
 
