@@ -4,7 +4,7 @@ extends RefCounted
 ## En test (--kw-save=…), un fichier voisin de la sauvegarde de test est utilisé.
 
 const DEFAULTS := {"sensitivity": 1.0, "fov": 72.0, "speed": 1.0, "invert_y": false, "ui_scale": 1.0,
-	"head_bob": true, "hotbar": ["note", "postit", "card", "whiteboard", "kanban", "desk", "library", "table", "lamp", "door"]}
+	"head_bob": true, "third_person": false, "hotbar": ["note", "postit", "card", "whiteboard", "kanban", "desk", "library", "table", "lamp", "door"]}
 static var data := {}
 static var path := "user://settings.json"
 
@@ -40,3 +40,11 @@ static func set_value(key: String, value) -> void:
 	if data.is_empty():
 		load_settings()
 	data[key] = value
+
+
+## Chemin de la sauvegarde de test (--kw-save=…), "" hors test. Sert aux fichiers voisins (cosmétiques…).
+static func test_save_path() -> String:
+	for a in OS.get_cmdline_user_args():
+		if a.begins_with("--kw-save="):
+			return a.substr(10)
+	return ""

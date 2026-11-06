@@ -4,6 +4,8 @@ extends Node3D
 ## - Chaque passage exhale des particules lumineuses (couleur de la salle cible).
 ## - Le joueur porte une aura (quelques lueurs) et un champ répulsif
 ##   (GPUParticlesAttractorSphere3D) qui écarte TOUTES les particules GPU du monde.
+## - Cosmétiques (autoload Cosmetics) : style de l'aura, traînée de pas, style des émissions
+##   de portails ; reconstruits à chaque changement d'équipement (CosmeticFX).
 
 const PORTAL_AMOUNT := 70
 const DOOR_AMOUNT := 28
@@ -11,7 +13,9 @@ const DOOR_AMOUNT := 28
 var _emitters := {} # obj_id -> GPUParticles3D
 var _signature := ""
 var _room := ""
-var _aura: GPUParticles3D
+var _aura: GPUParticles3D # null si aucune aura équipée
+var _trail: GPUParticles3D # null si aucune traînée
+var _portal_style := ""
 var _field: GPUParticlesAttractorSphere3D
 var _mote_mesh: QuadMesh
 
@@ -25,8 +29,36 @@ func _ready() -> void:
 	_field.strength = -7.0
 	_field.attenuation = 0.8
 	add_child(_field)
-	_aura = _make_aura()
-	add_child(_aura)
+	_rebuild_cosmetics()
+	var cm = get_node_or_null("/root/Cosmetics")
+	if cm:
+		cm.changed.connect(_rebuild_cosmetics)
+
+
+## Aura + traînée selon l'équipement ; les portails sont reconstruits au prochain _process.
+func _rebuild_cosmetics() -> void:
+	var cm = get_node_or_null("/root/Cosmetics")
+	if _aura:
+		_aura.queue_free()
+		_aura = null
+	if _trail:
+		_trail.queue_free()
+		_trail = null
+	if cm == null:
+		_aura = _make_aura()
+		add_child(_aura)
+		return
+	var ap: Dictionary = cm.params_of("aura")
+	if not ap.is_empty():
+		var tint := Color(cm.aura_tint) if cm.aura_tint != "" else Color(0, 0, 0, 0)
+		_aura = CosmeticFX.make_aura(ap, tint, cm.aura_density)
+		add_child(_aura)
+	var tp: Dictionary = cm.params_of("trail")
+	if not tp.is_empty():
+		_trail = CosmeticFX.make_trail(tp)
+		add_child(_trail)
+	_portal_style = cm.get_equipped("portal")
+	_signature = "" # force la reconstruction des émetteurs de portails
 
 
 func _main() -> Node:
@@ -40,9 +72,14 @@ func _process(_delta: float) -> void:
 		return
 	var p: Node3D = m.player
 	_field.global_position = p.global_position + Vector3(0, 1.0, 0)
-	_aura.global_position = p.global_position + Vector3(0, 1.0, 0)
-	# Reconstruit les émetteurs si la salle ou l'ensemble des passages change.
-	var sig: String = m.current_room
+	if _aura:
+		_aura.global_position = p.global_position + Vector3(0, 1.0, 0)
+	if _trail:
+		_trail.global_position = p.global_position + Vector3(0, 0.04, 0)
+		var cb := p as CharacterBody3D
+		_trail.emitting = cb != null and cb.is_on_floor() and Vector2(cb.velocity.x, cb.velocity.z).length() > 0.6
+	# Reconstruit les émetteurs si la salle, l'ensemble des passages ou le style change.
+	var sig: String = m.current_room + "#" + _portal_style
 	for id in m.nodes:
 		var o: Dictionary = World.data.objects.get(id, {})
 		if not o.is_empty() and o.type in ["door", "portal"]:
@@ -71,6 +108,10 @@ func _rebuild(m: Node) -> void:
 		var t: String = o.params.get("target_room", "")
 		var col := Color(World.data.rooms[t].color) if World.data.rooms.has(t) else Color(0.8, 0.8, 0.85)
 		var e := _make_portal_emitter(o, col)
+		var cm = get_node_or_null("/root/Cosmetics")
+		if cm and cm.get_equipped("portal") != "":
+			CosmeticFX.style_portal(e, e.process_material as ParticleProcessMaterial, cm.params_of("portal"), col,
+				1.0 if o.type == "portal" else 0.7, 0.035)
 		add_child(e)
 		_emitters[id] = e
 

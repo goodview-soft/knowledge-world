@@ -1,0 +1,79 @@
+{
+	"version": 1,
+	"rarities": {
+		"common": {"name": "Commun", "color": "#9aa3ad", "order": 0},
+		"rare": {"name": "Rare", "color": "#5aa9ff", "order": 1},
+		"epic": {"name": "Épique", "color": "#b57bff", "order": 2},
+		"legendary": {"name": "Légendaire", "color": "#ffb547", "order": 3}
+	},
+	"categories": [
+		{"id": "skin", "name": "Tenue", "slot": true},
+		{"id": "head", "name": "Tête", "slot": true, "optional": true},
+		{"id": "back", "name": "Dos & cou", "slot": true, "optional": true},
+		{"id": "aura", "name": "Aura", "slot": true, "optional": true},
+		{"id": "trail", "name": "Traînée", "slot": true, "optional": true},
+		{"id": "portal", "name": "Portails", "slot": true},
+		{"id": "emote", "name": "Emotes", "slot": true}
+	],
+	"defaults": {"skin": "skin_explorer", "head": "", "back": "", "aura": "aura_glow", "trail": "", "portal": "portal_room", "emote": "emote_wave"},
+	"items": [
+		{"id": "skin_explorer", "category": "skin", "name": "Explorateur", "description": "La tenue de toujours : simple, confortable, prête à flâner.", "rarity": "common", "premium": false, "price_cents": 0, "tags": ["classique"],
+			"params": {"skin": "#e2b894", "hair": "#4a3426", "shirt": "#5b7cfa", "pants": "#2e3440", "shoes": "#1d1f24", "eyes": "#22252b"}},
+		{"id": "skin_scholar", "category": "skin", "name": "Érudit", "description": "Pull chaud et pantalon de velours, pour les longues lectures.", "rarity": "common", "premium": false, "price_cents": 0, "tags": ["lecture", "calme"],
+			"params": {"skin": "#c99572", "hair": "#2b2b2b", "shirt": "#8a5a44", "pants": "#3b3226", "shoes": "#20160f", "eyes": "#1b1b1b"}},
+		{"id": "skin_gardener", "category": "skin", "name": "Jardinier", "description": "Vert sauge et terre fraîche.", "rarity": "rare", "premium": false, "price_cents": 0, "tags": ["nature"],
+			"params": {"skin": "#f0c8a8", "hair": "#a0522d", "shirt": "#7fae8a", "pants": "#5a4632", "shoes": "#2d2318", "eyes": "#2a3a2a"}},
+		{"id": "skin_night", "category": "skin", "name": "Veilleur de nuit", "description": "Bleu nuit et reflets d'étoiles, pour les sessions tardives.", "rarity": "epic", "premium": true, "price_cents": 399, "tags": ["nuit", "étoiles"],
+			"params": {"skin": "#d9b08c", "hair": "#11131a", "shirt": "#1e2a52", "pants": "#141a30", "shoes": "#0b0d14", "eyes": "#9fd0ff", "glow": "#9fd0ff"}},
+		{"id": "skin_astronaut", "category": "skin", "name": "Astronaute", "description": "Combinaison blanche et liseré orange : explorer l'immensité du savoir.", "rarity": "legendary", "premium": true, "price_cents": 799, "tags": ["espace"],
+			"params": {"skin": "#e9eef5", "hair": "#e9eef5", "shirt": "#f2f4f8", "pants": "#dfe4ec", "shoes": "#8c939e", "eyes": "#ff9a3c", "glow": "#ff9a3c"}},
+
+		{"id": "head_beanie", "category": "head", "name": "Bonnet", "description": "Un bonnet de laine moelleux.", "rarity": "common", "premium": false, "price_cents": 0, "tags": ["hiver"],
+			"params": {"model": "beanie", "color": "#c75b5b"}},
+		{"id": "head_halo", "category": "head", "name": "Auréole", "description": "Un anneau de lumière qui flotte doucement.", "rarity": "rare", "premium": false, "price_cents": 0, "tags": ["lumière"],
+			"params": {"model": "halo", "color": "#fff1b8"}},
+		{"id": "head_helmet", "category": "head", "name": "Casque d'explorateur", "description": "Casque rond à visière fumée.", "rarity": "rare", "premium": true, "price_cents": 199, "tags": ["exploration"],
+			"params": {"model": "helmet", "color": "#d8dde6", "visor": "#2b3a55"}},
+		{"id": "head_crown", "category": "head", "name": "Couronne du savoir", "description": "Or tiède, pour célébrer un esprit curieux.", "rarity": "epic", "premium": true, "price_cents": 299, "tags": ["or"],
+			"params": {"model": "crown", "color": "#ffcf5a"}},
+
+		{"id": "back_scarf", "category": "back", "name": "Écharpe", "description": "Une longue écharpe qui suit vos pas.", "rarity": "common", "premium": false, "price_cents": 0, "tags": ["hiver"],
+			"params": {"model": "scarf", "color": "#e0a040"}},
+		{"id": "back_wings", "category": "back", "name": "Ailes de lumière", "description": "Des ailes légères et translucides, qui battent lentement.", "rarity": "legendary", "premium": true, "price_cents": 699, "tags": ["lumière", "ailes"],
+			"params": {"model": "wings", "color": "#bfe3ff"}},
+
+		{"id": "aura_glow", "category": "aura", "name": "Lueurs", "description": "Quelques lueurs paisibles qui vous accompagnent.", "rarity": "common", "premium": false, "price_cents": 0, "tags": ["calme"],
+			"params": {"shape": "dot", "colors": ["#bfe0ff"], "amount": 36, "radius": 0.75, "size": 0.035, "rise": 0.05, "peak": 0.45}},
+		{"id": "aura_sparks", "category": "aura", "name": "Étincelles", "description": "De petites étoiles scintillantes.", "rarity": "rare", "premium": false, "price_cents": 0, "tags": ["étoiles"],
+			"params": {"shape": "spark", "colors": ["#fff3c4", "#ffd27a"], "amount": 48, "radius": 0.8, "size": 0.05, "rise": 0.12, "peak": 0.7}},
+		{"id": "aura_petals", "category": "aura", "name": "Pétales", "description": "Des pétales de cerisier qui tourbillonnent.", "rarity": "rare", "premium": false, "price_cents": 0, "tags": ["nature", "printemps"],
+			"params": {"shape": "petal", "colors": ["#ffc2d9", "#ff9ec1"], "amount": 30, "radius": 0.9, "size": 0.07, "rise": -0.08, "peak": 0.8, "shaded": true}},
+		{"id": "aura_snow", "category": "aura", "name": "Flocons", "description": "Une neige douce et silencieuse.", "rarity": "epic", "premium": true, "price_cents": 249, "tags": ["hiver"],
+			"params": {"shape": "flake", "colors": ["#ffffff", "#d6ecff"], "amount": 42, "radius": 0.9, "size": 0.06, "rise": -0.12, "peak": 0.8}},
+		{"id": "aura_runes", "category": "aura", "name": "Runes arcanes", "description": "Des glyphes anciens orbitent autour de vous.", "rarity": "legendary", "premium": true, "price_cents": 499, "tags": ["mystère"],
+			"params": {"shape": "rune", "colors": ["#9d8cff", "#6fe3ff"], "amount": 22, "radius": 0.95, "size": 0.09, "rise": 0.02, "peak": 0.85, "orbit": 0.25}},
+
+		{"id": "trail_dust", "category": "trail", "name": "Poussière d'étoiles", "description": "Une fine poussière lumineuse à chaque pas.", "rarity": "common", "premium": false, "price_cents": 0, "tags": ["étoiles"],
+			"params": {"shape": "dot", "colors": ["#cfe3ff"], "amount": 40, "size": 0.03, "lifetime": 1.6}},
+		{"id": "trail_leaves", "category": "trail", "name": "Feuilles", "description": "Des feuilles d'automne s'envolent derrière vous.", "rarity": "rare", "premium": false, "price_cents": 0, "tags": ["nature", "automne"],
+			"params": {"shape": "petal", "colors": ["#e8a33c", "#c8572d", "#f2c45a"], "amount": 24, "size": 0.06, "lifetime": 2.2, "shaded": true}},
+		{"id": "trail_petals", "category": "trail", "name": "Sentier de pétales", "description": "Chaque pas fait éclore des pétales roses.", "rarity": "epic", "premium": true, "price_cents": 249, "tags": ["printemps"],
+			"params": {"shape": "petal", "colors": ["#ffc2d9", "#ffffff"], "amount": 36, "size": 0.06, "lifetime": 2.4, "shaded": true}},
+		{"id": "trail_runes", "category": "trail", "name": "Empreintes runiques", "description": "Des glyphes s'allument puis s'éteignent sous vos pieds.", "rarity": "legendary", "premium": true, "price_cents": 449, "tags": ["mystère"],
+			"params": {"shape": "rune", "colors": ["#9d8cff", "#6fe3ff"], "amount": 18, "size": 0.1, "lifetime": 1.8}},
+
+		{"id": "portal_room", "category": "portal", "name": "Couleur de la salle", "description": "Chaque passage exhale la couleur de la salle vers laquelle il mène.", "rarity": "common", "premium": false, "price_cents": 0, "tags": ["classique"],
+			"params": {"shape": "dot", "colors": [], "speed": 1.0, "gravity": 0.03}},
+		{"id": "portal_embers", "category": "portal", "name": "Braises", "description": "Des braises chaudes montent lentement des passages.", "rarity": "rare", "premium": false, "price_cents": 0, "tags": ["feu", "chaleur"],
+			"params": {"shape": "spark", "colors": ["#ffb35c", "#ff6f3c"], "speed": 0.8, "gravity": 0.25}},
+		{"id": "portal_snow", "category": "portal", "name": "Neige", "description": "Les passages laissent tomber une neige tranquille.", "rarity": "epic", "premium": true, "price_cents": 299, "tags": ["hiver"],
+			"params": {"shape": "flake", "colors": ["#ffffff", "#d6ecff"], "speed": 0.6, "gravity": -0.12}},
+		{"id": "portal_aurora", "category": "portal", "name": "Aurore", "description": "Des voiles verts et violets, comme une aurore boréale.", "rarity": "legendary", "premium": true, "price_cents": 499, "tags": ["ciel"],
+			"params": {"shape": "dot", "colors": ["#7cffc4", "#8f7bff", "#5fd3ff"], "speed": 1.2, "gravity": 0.08}},
+
+		{"id": "emote_wave", "category": "emote", "name": "Salut", "description": "Un signe de la main amical.", "rarity": "common", "premium": false, "price_cents": 0, "tags": ["social"], "params": {"anim": "wave"}},
+		{"id": "emote_sit", "category": "emote", "name": "S'asseoir", "description": "Prendre le temps de contempler.", "rarity": "common", "premium": false, "price_cents": 0, "tags": ["calme"], "params": {"anim": "sit"}},
+		{"id": "emote_dance", "category": "emote", "name": "Danse lente", "description": "Un balancement paisible.", "rarity": "rare", "premium": false, "price_cents": 0, "tags": ["musique"], "params": {"anim": "dance"}},
+		{"id": "emote_bow", "category": "emote", "name": "Révérence", "description": "Une révérence élégante.", "rarity": "epic", "premium": true, "price_cents": 149, "tags": ["élégance"], "params": {"anim": "bow"}}
+	]
+}

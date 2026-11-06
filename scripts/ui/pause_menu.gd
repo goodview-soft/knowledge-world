@@ -1,14 +1,15 @@
 class_name PauseMenu
 extends KWPanel
-## Menu principal / pause (Échap) : reprendre, carte, salle, paramètres, aide, quitter.
+## Menu principal / pause (Échap) : reprendre, carte, salle, casier, paramètres, aide, quitter.
 
 
 func _init() -> void:
-	super("Knowledge World", Vector2(440, 520))
+	super("Knowledge World", Vector2(440, 570))
 	var items := [
 		["▶   Reprendre", func(): closed.emit()],
 		["◎   Carte du monde", func(): main.open_panel(MapPanel.new())],
 		["✎   Personnaliser la salle", func(): main.open_panel(RoomPanel.new(main.current_room))],
+		["✦   Casier (personnalisation)", func(): main.open_panel(LockerPanel.new())],
 		["⚙   Paramètres", func(): main.open_panel(SettingsPanel.new())],
 		["⌂   Écran d'accueil · mondes", func(): main.show_title()],
 		["?    Raccourcis", func():

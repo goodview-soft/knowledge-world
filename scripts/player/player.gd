@@ -3,6 +3,8 @@ extends CharacterBody3D
 ## Joueur à la première personne : ZQSD (touches physiques), souris, RayCast3D d'interaction,
 ## saut (Espace), accroupi (Ctrl gauche maintenu seul, ou C en bascule), petites marches,
 ## léger balancement de tête (KWSettings "head_bob").
+## V : vue troisième personne (caméra d'épaule sur SpringArm3D, avatar KWAvatar animé) ;
+## le RayCast d'interaction part toujours de la caméra active (centre de l'écran). J : emote équipée.
 
 const SPEED := 3.0
 const SPRINT := 5.5
@@ -28,6 +30,11 @@ var ray: RayCast3D
 var shape: CollisionShape3D
 var capsule: CapsuleShape3D
 var up_cast: ShapeCast3D
+var spring: SpringArm3D
+var cam3: Camera3D
+var avatar: KWAvatar
+var third_person := false
+var _reach := 3.5
 ## État accroupi : bascule (C) ; is_crouched reflète l'état réel (y compris bloqué sous un obstacle).
 var crouch_toggled := false
 var is_crouched := false
@@ -70,6 +77,21 @@ func _init() -> void:
 	ray = RayCast3D.new()
 	ray.collision_mask = 11 # murs, objets, passages (portes/portails)
 	cam.add_child(ray)
+	# Vue troisième personne : bras à ressort derrière l'épaule (collision murs/objets, pas le joueur).
+	spring = SpringArm3D.new()
+	spring.position = Vector3(0.45, 0.12, 0)
+	spring.spring_length = 2.3
+	spring.collision_mask = 3
+	spring.margin = 0.08
+	var ss := SphereShape3D.new()
+	ss.radius = 0.18
+	spring.shape = ss
+	head.add_child(spring)
+	cam3 = Camera3D.new()
+	cam3.fov = 72
+	cam3.near = 0.05
+	cam3.current = false
+	spring.add_child(cam3)
 	set_reach(3.5)
 	floor_snap_length = 0.3
 	floor_max_angle = deg_to_rad(50)
@@ -77,6 +99,45 @@ func _init() -> void:
 
 func _ready() -> void:
 	_setup_actions()
+	cam.make_current()
+	avatar = KWAvatar.new()
+	add_child(avatar)
+	var cm = get_node_or_null("/root/Cosmetics")
+	if cm:
+		avatar.apply_look(cm.look())
+		cm.changed.connect(func(): avatar.apply_look(cm.look()))
+	set_third_person(bool(KWSettings.get_value("third_person")), false)
+
+
+## Bascule vue 1re / 3e personne. Le ray d'interaction est rattaché à la caméra active.
+func set_third_person(on: bool, persist := true) -> void:
+	third_person = on
+	var target := cam3 if on else cam
+	target.make_current()
+	if ray.get_parent() != target:
+		ray.reparent(target, false)
+	ray.transform = Transform3D.IDENTITY
+	if avatar:
+		avatar.set_shadow_only(not on)
+	set_reach(_reach)
+	if persist:
+		KWSettings.set_value("third_person", on)
+		KWSettings.save_settings()
+
+
+## Caméra active (celle qui rend la vue et porte le ray d'interaction).
+func active_camera() -> Camera3D:
+	return cam3 if third_person else cam
+
+
+## Joue l'emote équipée (Cosmetics) sur l'avatar.
+func play_emote(anim := "") -> void:
+	if avatar == null:
+		return
+	if anim == "":
+		var cm = get_node_or_null("/root/Cosmetics")
+		anim = str(cm.params_of("emote").get("anim", "wave")) if cm else "wave"
+	avatar.play_emote(anim)
 
 
 ## Actions créées en code (touches physiques : même position en AZERTY / QWERTY).
@@ -101,6 +162,7 @@ func apply_settings() -> void:
 	invert_y = bool(KWSettings.get_value("invert_y"))
 	head_bob = bool(KWSettings.get_value("head_bob"))
 	cam.fov = float(KWSettings.get_value("fov"))
+	cam3.fov = cam.fov
 
 
 func active() -> bool:
@@ -108,7 +170,10 @@ func active() -> bool:
 
 
 func set_reach(r: float) -> void:
-	ray.target_position = Vector3(0, 0, -r)
+	_reach = r
+	# En 3e personne, la portée est comptée depuis la tête : on ajoute la distance caméra → tête.
+	var extra := cam3.global_position.distance_to(head.global_position) if third_person and cam3.is_inside_tree() else 0.0
+	ray.target_position = Vector3(0, 0, -(r + extra))
 
 
 func teleport(pos: Vector3, yaw: float) -> void:
@@ -146,6 +211,12 @@ func _unhandled_input(event: InputEvent) -> void:
 			request_jump()
 		elif event.is_action("crouch_toggle"):
 			crouch_toggled = not crouch_toggled
+		elif event.keycode == KEY_V:
+			set_third_person(not third_person)
+			get_viewport().set_input_as_handled()
+		elif event.keycode == KEY_J:
+			play_emote()
+			get_viewport().set_input_as_handled()
 
 
 func _physics_process(delta: float) -> void:
@@ -197,6 +268,15 @@ func _physics_process(delta: float) -> void:
 	if _bob_amp > 0.0:
 		_bob += delta * (5.0 + hs * 1.6)
 	cam.position = Vector3(cos(_bob) * 0.008, absf(sin(_bob)) * 0.022 - 0.011, 0) * _bob_amp
+	# --- avatar (3e personne / ombre) et portée du ray depuis la caméra active
+	if avatar:
+		avatar.speed = hs
+		avatar.on_floor = is_on_floor()
+		avatar.crouch = e
+		avatar.pitch = head.rotation.x
+		avatar.position.y = 0.0
+	if third_person:
+		set_reach(_reach)
 
 
 ## Petites marches (estrade) : si on bute devant mais que la voie est libre STEP_H plus haut, on monte.
