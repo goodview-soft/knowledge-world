@@ -13,6 +13,7 @@ var lights: Array = []        # {pos, axis}
 var light_mat := [StandardMaterial3D.new(), StandardMaterial3D.new()]
 var stop_signs := 0
 var door_count := 0
+var door_mmi: MultiMeshInstance3D   # portes de façade (une instance par bâtiment, dans l'ordre de city.buildings)
 var sign_count := 0
 
 
@@ -142,7 +143,7 @@ func _doors_and_signs() -> void:
 	dm.size = Vector3(1.3, 2.2, 0.12)
 	var m := _unlit(Color.WHITE)
 	m.vertex_color_use_as_albedo = true
-	_mm(door_xf, dm, m, door_col)
+	door_mmi = _mm(door_xf, dm, m, door_col)
 	var am := BoxMesh.new()
 	am.size = Vector3(4.2, 0.7, 0.5)
 	_mm(aw_xf, am, m, aw_col)
@@ -256,3 +257,22 @@ func set_phase(ph: int) -> void:
 		var col := Color(0.1, 0.9, 0.2) if green else Color(0.95, 0.12, 0.1)
 		light_mat[a].albedo_color = col
 		light_mat[a].emission = col
+
+
+## Masque (échelle nulle) ou rétablit l'instance MultiMesh de la porte du bâtiment `i` : remplacée par un vrai battant.
+func set_facade_door_visible(i: int, vis: bool) -> void:
+	if door_mmi == null or i < 0 or i >= door_mmi.multimesh.instance_count:
+		return
+	var bi := door_mmi.multimesh
+	if not _door_orig.has(i):
+		_door_orig[i] = bi.get_instance_transform(i)
+	var t: Transform3D = _door_orig[i]
+	bi.set_instance_transform(i, t if vis else Transform3D(Basis().scaled(Vector3.ZERO), t.origin))
+
+
+var _door_orig := {}
+
+
+func door_color(i: int) -> Color:
+	var pal := [Color(0.35, 0.2, 0.12), Color(0.15, 0.3, 0.4), Color(0.4, 0.12, 0.12), Color(0.2, 0.35, 0.2), Color(0.25, 0.22, 0.2)]
+	return pal[i % pal.size()]

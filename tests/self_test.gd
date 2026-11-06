@@ -403,6 +403,59 @@ static func run(main) -> void:
 		main.player.global_position = dx2.origin + dx2.basis.z * 1.5 + Vector3(0, 0.05, 0)
 		check(rw2.try_door() and rw2.portals.active, "porte d'un immeuble inoccupé : E ouvre l'entrée")
 		rw2.portals.close()
+	# Vraies portes : battant animé, verrouillage, sortie replacée dehors.
+	var hb2: Dictionary = {}
+	for b in rw2.city.buildings:
+		if b["role"] == "residence" and not rw2.occupant_of(int(b["idx"])).is_empty():
+			hb2 = b
+			break
+	if not hb2.is_empty():
+		var bi2 := int(hb2["idx"])
+		var sd: HingedDoor = rw2.portals.street_door(bi2)
+		sd.swing(true, true)
+		check(sd.openness() > 0.99 and sd.is_open, "porte d'immeuble : battant ouvert (95°)")
+		sd.swing(false, true)
+		check(sd.is_closed(), "porte d'immeuble : refermée")
+		var clk: GameClock = rw2.director.clock
+		var h0: float = clk.hour()
+		clk.set_time(clk.day, 23.5)
+		check(not rw2.street_open(bi2) and rw2.street_open(rw2.player_home), "entrée fermée la nuit sauf résident")
+		clk.set_time(clk.day, 12.0)
+		check(rw2.street_open(bi2), "entrée ouverte le jour")
+		clk.set_time(clk.day, h0)
+		var oc2: Dictionary = rw2.occupant_of(bi2)
+		rw2.portals.open_for(bi2, str(oc2["who"]), oc2["color"], true, str(oc2.get("apartment_id", "")))
+		var plan2: Dictionary = hb2["plan"]
+		var other := ""
+		for aid in plan2["apartments"]:
+			if str(aid) != rw2.apartment.apartment_id and rw2.apartment.door_nodes.has(aid):
+				other = str(aid)
+				break
+		check(other != "" and rw2.apartment.door_nodes.size() >= 2, "portes palières : battants")
+		var my_apt: String = rw2.apartment.apartment_id
+		check(rw2.apartment.door_nodes[my_apt].is_open, "appartement visité : porte ouverte")
+		# sortie : replacé côté couloir, la porte se referme
+		var cd3: Array = plan2["apartments"][my_apt]["corridor_door"]
+		var ox3: float = float(plan2["entrance"]["x"])
+		var fh3: float = float(plan2["fh"])
+		var fl3: int = int(plan2["apartments"][my_apt]["floor"])
+		var rooms3: Array = plan2["apartments"][my_apt]["rooms"]
+		var cz3 := 0.0
+		for r in rooms3:
+			cz3 += float((r["rect"] as Array)[1]) + float((r["rect"] as Array)[3]) * 0.5
+		cz3 /= float(rooms3.size())
+		var ia3: float = 1.0 if cz3 > float(cd3[1]) else -1.0
+		main.player.global_position = rw2.apartment.global_position + Vector3(float(cd3[0]) - ox3, fl3 * fh3 + 0.05, float(cd3[1]) + ia3 * 0.8)
+		rw2.portals._cool = 0.0
+		rw2.portals.interact_inside(main.player, true)
+		var lz: float = main.player.global_position.z - rw2.apartment.global_position.z - float(cd3[1])
+		check(lz * ia3 < 0.0, "sortie d'appartement : replacé côté couloir")
+		var dn3: HingedDoor = rw2.apartment.door_nodes[my_apt]
+		dn3.close_in(0.01)
+		await main.get_tree().create_timer(1.4).timeout
+		check(dn3.is_closed(), "porte d'appartement : se referme derrière nous")
+		# occupant absent : verrouillé
+		rw2.portals.close()
 	print("SELFTEST ", "OK" if fails == 0 else "ÉCHECS : %d" % fails)
 	tree.quit(0 if fails == 0 else 1)
 
@@ -498,10 +551,20 @@ static func mind_test(main) -> void:
 		ocz /= float((bplan["apartments"][other]["rooms"] as Array).size())
 		var oia: float = 1.0 if ocz > float(ocd[1]) else -1.0
 		pl.teleport(rw.apartment.global_position + Vector3(float(ocd[0]) - box, 0.05, float(ocd[1]) - oia * 1.0), 0.0)
-		check(rw.portals.interact_inside(pl) and rw.apartment.apartment_id == other and rw.apartment.furniture_count >= 5, "E sur une porte d'appartement : on y entre, meublé (%d meubles)" % rw.apartment.furniture_count)
+		var ocx: Dictionary = rw.occupant_of_apt(rw.portals.building, other)
+		var was := rw.apartment.apartment_id
+		var handled: bool = rw.portals.interact_inside(pl, true)
+		if bool(ocx["present"]) or str(ocx["who"]) == "toi":
+			check(handled and rw.apartment.apartment_id == other and rw.apartment.furniture_count >= 5, "E sur une porte d'appartement (occupant présent) : on y entre, meublé (%d meubles)" % rw.apartment.furniture_count)
+		else:
+			check(handled and rw.apartment.apartment_id == was, "porte d'appartement verrouillée : occupant absent")
 		await tree.create_timer(1.0).timeout
+		if rw.apartment.apartment_id != other:
+			rw.portals.apt.generate_building(bplan, other, Color(0.7, 0.5, 0.4), false, "")
+			pl.teleport(rw.apartment.global_position + Vector3(float(ocd[0]) - box, 0.05, float(ocd[1]) + oia * 1.0), 0.0)
 		check(pl.global_position.y > ay - 0.2 and pl.global_position.y < ay + 1.0, "appartement : sol sous les pieds")
-		check(rw.portals.interact_inside(pl) and absf(pl.global_position.z - (float(ocd[1]) - oia * 1.1)) < 0.2, "E sur la porte de l'appartement : retour au couloir")
+		rw.portals._cool = 0.0
+		check(rw.portals.interact_inside(pl, true) and absf(pl.global_position.z - (float(ocd[1]) - oia * 1.1)) < 0.2, "E sur la porte de l'appartement : retour au couloir")
 	rw.portals.traverse(pl, false)
 	check(pl.global_position.y > -1.0 and pl.global_position.distance_to(dxf.origin) < 2.0, "appartement : sortie vers le trottoir")
 	main.in_palace = true
@@ -561,7 +624,7 @@ static func shot(main, path: String) -> void:
 	for a in OS.get_cmdline_user_args():
 		if a.begins_with("--kw-shot-reality"):
 			await tree.create_timer(0.5).timeout
-			if a.ends_with("=facade") or a.ends_with("=apt") or a.get_slice("=", 1) in ["hall", "corridor", "room", "room2", "stairs"]:
+			if a.ends_with("=facade") or a.ends_with("=apt") or a.ends_with("=door") or a.ends_with("=aptdoor") or a.get_slice("=", 1) in ["hall", "corridor", "room", "room2", "stairs"]:
 				var rw: RealityWorld = main.mind.reality
 				rw.city.set_night(true)
 				var pl: KWPlayer = main.player
@@ -612,6 +675,25 @@ static func shot(main, path: String) -> void:
 					var dd := lookat - pp
 					pl.teleport(rw.apartment.global_position + Vector3(pp.x, floor_y + 0.05, pp.y), atan2(-dd.x, -dd.y))
 					pl.head.rotation.x = -0.12
+				elif a.ends_with("=door"):
+					var sdd: HingedDoor = rw.portals.street_door(tb)
+					sdd.swing(false, true)
+					pl.teleport(dx.origin + dx.basis.z * 3.2 + Vector3(0, 0.05, 0), atan2(dx.basis.z.x, dx.basis.z.z))
+					pl.head.rotation.x = 0.05
+					sdd.swing(true)
+				elif a.ends_with("=aptdoor"):
+					pl.teleport(dx.origin + dx.basis.z * 0.4, 0.0)
+					rw.portals.traverse(pl, true)
+					var pn: Dictionary = rw.city.buildings[tb]["plan"]
+					var apx: Dictionary = pn["apartments"][rw.apartment.apartment_id]
+					var cdx: Array = apx["corridor_door"]
+					var czx := 0.0
+					for r in apx["rooms"]:
+						czx += float((r["rect"] as Array)[1]) + float((r["rect"] as Array)[3]) * 0.5
+					czx /= float((apx["rooms"] as Array).size())
+					var iax: float = 1.0 if czx > float(cdx[1]) else -1.0
+					pl.teleport(rw.apartment.global_position + Vector3(float(cdx[0]) - float(pn["entrance"]["x"]), float(apx["floor"]) * float(pn["fh"]) + 0.05, float(cdx[1]) - iax * 1.1), PI if iax > 0.0 else 0.0)
+					pl.head.rotation.x = -0.05
 				elif a.ends_with("=apt"):
 					pl.teleport(dx.origin + dx.basis.z * 0.4, 0.0)
 					rw.portals.traverse(pl, true)
@@ -622,12 +704,13 @@ static func shot(main, path: String) -> void:
 				else:
 					pl.teleport(dx.origin + dx.basis.z * 16.0 + Vector3(0, 0.05, 0), atan2(dx.basis.z.x, dx.basis.z.z))
 					pl.head.rotation.x = 0.2
-				await tree.create_timer(1.0).timeout
+				if not a.ends_with("=door"):
+					await tree.create_timer(1.0).timeout
 			if a.ends_with("=bubble"):
 				main.mind.enter_palace()
 				await tree.create_timer(0.75).timeout
 			else:
-				await tree.create_timer(0.5).timeout
+				await tree.create_timer(0.25 if a.ends_with("=door") else 0.5).timeout
 			print("SHOTPOS ", main.player.global_position, " palace=", main.in_palace, " fp=", not main.player.third_person)
 			main.get_viewport().get_texture().get_image().save_png(path)
 			print("capture : ", path)

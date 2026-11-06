@@ -21,6 +21,9 @@ var _cool := 0.0
 var _was_third := true
 var _legs: Array = []          # [{quad, vp, cam}] : 0 = vue depuis la ville, 1 = vue depuis l'appartement
 var _shader: Shader
+var street_doors := {}         # idx bâtiment -> HingedDoor (remplace l'instance MultiMesh de la façade)
+var _pres := {}
+var _poll := 0.0
 
 
 func setup(c: CityBuilder, apartment: ApartmentInterior) -> void:
@@ -68,6 +71,18 @@ func door_xf_of(b: Dictionary) -> Transform3D:
 	return city.global_transform * Transform3D(Basis(Vector3.UP, atan2(n.x, n.z)), p)
 
 
+## Battant animé de la porte d'entrée du bâtiment `bi` (créé à la demande ; masque l'instance MultiMesh).
+func street_door(bi: int) -> HingedDoor:
+	if street_doors.has(bi) and is_instance_valid(street_doors[bi]):
+		return street_doors[bi]
+	var d := HingedDoor.new().setup(1.3, 2.2, 0.1, city.details.door_color(bi), Color(0.22, 0.2, 0.18), 0.3)
+	city.add_child(d)
+	d.global_transform = door_xf_of(city.buildings[bi])
+	city.details.set_facade_door_visible(bi, false)
+	street_doors[bi] = d
+	return d
+
+
 ## Ouvre la porte du bâtiment `bi` sur l'appartement de `who`.
 func open_for(bi: int, who: String, color: Color, present: bool, apartment_id := "") -> void:
 	building = bi
@@ -77,8 +92,10 @@ func open_for(bi: int, who: String, color: Color, present: bool, apartment_id :=
 		apartment_id = str(plan["apartment_ids"][absi(who.hash()) % (plan["apartment_ids"] as Array).size()])
 	apt.generate_building(plan, apartment_id, color, present, who)
 	active = true
+	_pres.clear()
 	_leg_quad(0, a_xf)
 	_leg_quad(1, apt.door_xf())
+	street_door(bi).swing(true)
 
 
 func _leg_quad(k: int, xf: Transform3D) -> void:
@@ -118,6 +135,29 @@ func traverse(p: KWPlayer, to_inside: bool) -> void:
 	p.rotation = Vector3(0, xf.basis.get_euler().y, 0)
 	p.velocity = m.basis * p.velocity
 	_cool = 0.6
+	var sd := street_door(building)
+	if to_inside:
+		sd.close_in(0.8)  # elle se referme derrière nous
+	else:
+		sd.swing(true, true)
+		sd.close_in(1.2)
+
+
+## Un habitant qui sort (ou rentre) fait jouer sa porte dans le couloir.
+func _poll_residents(dt: float, inside: bool) -> void:
+	_poll -= dt
+	if _poll > 0.0 or not inside:
+		return
+	_poll = 1.0
+	for aid in apt.door_nodes:
+		if str(aid) == apt.apartment_id:
+			continue
+		var pr: bool = bool(get_parent().occupant_of_apt(building, str(aid))["present"])
+		if _pres.has(aid) and _pres[aid] != pr:
+			var d: HingedDoor = apt.door_nodes[aid]
+			d.swing(true)
+			d.close_in(2.0)
+		_pres[aid] = pr
 
 
 func _process(dt: float) -> void:
@@ -133,6 +173,9 @@ func _process(dt: float) -> void:
 		close()
 		return
 	_cool -= dt
+	var sd := street_door(building)
+	_legs[0]["quad"].visible = inside or sd.openness() > 0.45
+	_poll_residents(dt, inside)
 	var cx := p.cam.global_transform
 	var vsz := p.get_viewport().get_visible_rect().size
 	for k in 2:
@@ -155,12 +198,14 @@ func _process(dt: float) -> void:
 	var src2 := apt.door_xf() if inside else a_xf
 	var l := src2.affine_inverse() * p.global_position
 	var toward := p.velocity.dot(-src2.basis.z) > 0.4
+	if not inside and not sd.is_open:
+		return
 	if absf(l.x) < ApartmentInterior.DOOR_W * 0.5 and l.z > 0.0 and l.z < 0.55 and l.y > -0.5 and l.y < 1.2 and toward:
 		traverse(p, not inside)
 
 
 ## E à l'intérieur : porte de rue, porte d'un appartement (y entrer) ou porte de l'appartement courant (retour couloir).
-func interact_inside(p: KWPlayer) -> bool:
+func interact_inside(p: KWPlayer, instant := false) -> bool:
 	var plan: Dictionary = city.buildings[building]["plan"]
 	var ox: float = float(plan["entrance"]["x"])
 	var fh: float = float(plan["fh"])
@@ -191,15 +236,35 @@ func interact_inside(p: KWPlayer) -> bool:
 	var in_apt: bool = (lp.z - ez) * ia > 0.0
 	var tz: float
 	var face: float
+	var dn: HingedDoor = apt.door_nodes.get(best)
 	if best == apt.apartment_id and in_apt:
 		tz = ez - ia * 1.1 # retour au couloir, dos à la porte
 		face = -ia
-	else:
+		p.teleport(apt.global_position + Vector3(float(cd2[0]) - ox, f * fh + 0.05, tz), PI if face > 0.0 else 0.0)
+		_cool = 0.6
+		if dn != null:
+			dn.auto_close = 3.0
+			dn.close_in(1.2) # la porte se referme derrière nous
+		return true
+	var oc: Dictionary = get_parent().occupant_of_apt(building, best)
+	var mine: bool = str(oc["who"]) == "toi"
+	if best != apt.apartment_id and not mine and not bool(oc["present"]):
+		get_parent().toast("Fermé à clé — personne ne répond")
+		return true
+	var go := func() -> void:
 		if best != apt.apartment_id:
-			var oc: Dictionary = get_parent().occupant_of_apt(building, best)
 			apt.generate_building(plan, best, oc["color"], bool(oc["present"]), str(oc["who"]))
-		tz = ez + ia * 1.1
-		face = ia
-	p.teleport(apt.global_position + Vector3(float(cd2[0]) - ox, f * fh + 0.05, tz), PI if face > 0.0 else 0.0)
-	_cool = 0.6
+		p.teleport(apt.global_position + Vector3(float(cd2[0]) - ox, f * fh + 0.05, ez + ia * 1.1), PI if ia > 0.0 else 0.0)
+		_cool = 0.6
+		if not mine:
+			get_parent().toast("%s : « Ah, c'est toi ! Entre, entre, fais comme chez toi. »" % str(oc["who"]))
+	if instant or best == apt.apartment_id:
+		go.call()
+		return true
+	if not mine:
+		get_parent().toast("Toc toc…")
+	if dn != null:
+		dn.swing(true)
+	_cool = 1.0
+	get_tree().create_timer(0.8 if not mine else 0.5).timeout.connect(go)
 	return true

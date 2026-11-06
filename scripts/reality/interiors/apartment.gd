@@ -35,6 +35,7 @@ var _rng := RandomNumberGenerator.new()
 var _wall_mat: StandardMaterial3D
 var _sky_shader: Shader
 var _yoff := 0.0
+var door_nodes := {}   # id d'appartement -> HingedDoor (couloirs de l'immeuble courant)
 var floor_count := 0
 var apartment_id := ""
 var _mats := {}
@@ -300,6 +301,7 @@ func generate_building(plan: Dictionary, apt_id: String, bot_color := Color(0.7,
 	apartment_id = apt_id
 	layout_id = str(plan["pattern"])
 	_mats.clear()
+	door_nodes.clear()
 	if data.is_empty():
 		data = load_data()
 	_rng.seed = absi(apt_id.hash()) + 1
@@ -445,8 +447,6 @@ func _building_floor(plan: Dictionary, f: int, apt_id: String, ox: float, accent
 
 ## Portes palières : encadrement, vantail (sauf appartement visité : ouverture), numéro sur le couloir.
 func _apt_doors(plan: Dictionary, fd: Dictionary, f: int, apt_id: String, ox: float) -> void:
-	var wood := _cmat(Color(0.3, 0.2, 0.13))
-	var leaf := _cmat(Color(0.42, 0.27, 0.16))
 	for aid in fd["apartments"]:
 		var a: Dictionary = plan["apartments"][aid]
 		var cd: Array = a["corridor_door"]
@@ -458,12 +458,14 @@ func _apt_doors(plan: Dictionary, fd: Dictionary, f: int, apt_id: String, ox: fl
 		cz /= float((a["rooms"] as Array).size())
 		var dirc: float = -1.0 if cz > ez else 1.0 # côté couloir
 		var dw := 0.9
-		for sx in [-1, 1]:
-			_box(Vector3(0.1, 2.2, 0.32), Vector3(px + sx * (dw * 0.5 + 0.05), _yoff + 1.1, ez), wood, false)
-		_box(Vector3(dw + 0.2, 0.12, 0.32), Vector3(px, _yoff + 2.16, ez), wood, false)
-		if aid != apt_id:
-			_box(Vector3(dw, 2.1, 0.24), Vector3(px, _yoff + 1.05, ez), leaf, false)
-			_box(Vector3(0.05, 0.05, 0.06), Vector3(px + 0.32, _yoff + 1.0, ez + dirc * 0.14), _cmat(Color(0.8, 0.7, 0.3)), false)
+		var hd := HingedDoor.new().setup(dw, 2.1, 0.07, Color(0.42, 0.27, 0.16), Color(0.3, 0.2, 0.13), 0.32)
+		hd.position = Vector3(px, _yoff, ez)
+		hd.rotation.y = 0.0 if dirc > 0.0 else PI
+		add_child(hd)
+		if aid == apt_id:
+			hd.auto_close = 0.0 # appartement visité : porte restée ouverte derrière nous
+			hd.swing(true, true)
+		door_nodes[aid] = hd
 		_label3(str((f + 1) * 100 + int(a["unit"])), Vector3(px, _yoff + 1.85, ez + dirc * 0.17), 0.0 if dirc > 0.0 else PI, 0.0045)
 
 

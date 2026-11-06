@@ -209,6 +209,18 @@ func occupant_of_apt(bi: int, aid: String) -> Dictionary:
 	return {"who": "", "color": Color(0.85, 0.82, 0.76), "present": false}
 
 
+## Entrée d'immeuble : ouverte de 7 h à 22 h, ensuite digicode (résidents seulement ; le joueur réside dans le sien).
+func street_open(bi: int) -> bool:
+	var h: float = director.clock.hour()
+	return (h >= 7.0 and h < 22.0) or bi == player_home
+
+
+func toast(msg: String) -> void:
+	var m := get_tree().current_scene
+	if m != null and "hud" in m and m.hud != null:
+		m.hud.toast(msg)
+
+
 func try_door() -> bool:
 	var pl := _main_player()
 	if pl == null or portals == null:
@@ -227,6 +239,13 @@ func try_door() -> bool:
 		var to: Vector3 = pl.global_position - dx.origin
 		to.y = 0.0
 		if to.length() < 3.2 and to.dot(dx.basis.z) > -0.5:
+			var bi := int(b["idx"])
+			if portals.active and portals.building == bi and portals.street_door(bi).is_open:
+				portals.street_door(bi).close_in(0.01) # E sur une porte ouverte : on la referme
+				return true
+			if not street_open(bi):
+				toast("Digicode — l'immeuble est fermé la nuit (résidents seulement).")
+				return true
 			var oc := occupant_of(int(b["idx"]))
 			if oc.is_empty(): # immeuble sans habitant connu : on entre quand même
 				portals.open_for(int(b["idx"]), "", Color(0.85, 0.82, 0.76), false, "")
