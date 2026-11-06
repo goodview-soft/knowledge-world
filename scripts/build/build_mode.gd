@@ -59,6 +59,8 @@ func open_inventory() -> void:
 
 
 func toggle() -> void:
+	if not main.in_palace and not active:
+		return
 	active = not active
 	main.player.set_reach(8.0 if active else 3.5)
 	if not active:
@@ -293,6 +295,8 @@ func _process(_delta: float) -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
+	if not main.in_palace:
+		return
 	if not active or main.panel != null or Input.mouse_mode != Input.MOUSE_MODE_CAPTURED:
 		return
 	if structure.active:

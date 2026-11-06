@@ -52,7 +52,7 @@ func _ready() -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
-	if is_open or main.panel != null or main.title != null:
+	if is_open or main.panel != null or main.title != null or not main.in_palace:
 		return
 	if event is InputEventKey and event.pressed and not event.echo and event.keycode in [KEY_ENTER, KEY_KP_ENTER]:
 		_holding = true

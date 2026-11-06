@@ -4,7 +4,7 @@ extends Control
 ## feuille de raccourcis (F1), barre d'outils du mode construction.
 
 const HELP_SECTIONS := [
-	["Déplacement", [["ZQSD", "Se déplacer"], ["Souris", "Regarder"], ["Maj", "Courir"], ["Espace", "Sauter"], ["Ctrl · C", "S'accroupir (maintenir · bascule)"], ["E", "Interagir"], ["Entrée", "Parler à la conscience (maintenir : chat complet)"], ["Clic", "Reprendre la main"]]],
+	["Déplacement", [["ZQSD", "Se déplacer"], ["Souris", "Regarder"], ["Maj (maintenu)", "Courir"], ["Maj (appui court)", "Entrer / sortir du palais mental"], ["Espace", "Sauter"], ["Ctrl · C", "S'accroupir (maintenir · bascule)"], ["E", "Interagir"], ["Entrée", "Parler à la conscience (maintenir : chat complet)"], ["Clic", "Reprendre la main"]]],
 	["Navigation", [["Tab", "Carte & recherche"], ["H", "Retour au hub"], ["L", "Bibliothèque"], ["F", "Relations"], ["G", "Graphe des connaissances"], ["Échap", "Fermer / menu"], ["Ctrl+S", "Sauvegarder"]]],
 	["Création", [["N", "Note rapide"], ["P", "Personnaliser la salle"], ["B", "Mode construction"], ["F1", "Cette aide"]]],
 	["Construction", [["I · Tab", "Inventaire"], ["1 – 0", "Barre rapide"], ["Clic", "Poser / sélectionner"], ["G", "Déplacer"], ["R · Molette", "Pivoter"], ["PgUp/PgDn", "Taille (murs : largeur)"], ["Maj+PgUp/Dn", "Largeur seule"], ["T", "Style de l'objet"], ["Ctrl+D", "Dupliquer"], ["Suppr", "Supprimer"], ["X", "Grille"], ["Clic droit", "Annuler"]]],

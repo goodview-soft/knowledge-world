@@ -13,6 +13,9 @@ ZQSD/flèches se déplacer · souris regarder · Maj courir · **Espace** sauter
 **Tab** carte/recherche/favoris/récents/création · **H** hub · **N** note rapide · **L** bibliothèque · **G** graphe · **F** relations (objet visé ou salle) · **P** personnaliser la salle · **T** style de l'objet visé · **F1** feuille de raccourcis
 **B** construction : **I** ou **Tab** inventaire · 1-0 barre rapide · clic poser (fantôme vert = libre, rouge = occupé ; Maj+clic force) · clic sélectionner · G déplacer · R/molette pivoter · PgUp/PgDn taille (murs : largeur ; Maj = largeur seule / uniforme pour les murs) · **T** style de la sélection · Ctrl+D dupliquer · Suppr supprimer · X grille (+ accrochage des murs bout à bout) · clic droit annuler
 
+## Réalité et palais mental
+Tout le monde existant (hub, salles, portails, construction, notes, IA) est le **palais mental**. On démarre dans la **réalité** (un sol sobre, 3e personne, mêmes déplacements ; pas de construction/carte/salles). **Maj en appui court** (< 0,25 s, sans se déplacer) : entrer/sortir du palais — le personnage s'assoit en tailleur, une bulle de pensée montre le palais en direct, la caméra y entre (clic pour passer). Maj maintenu = sprint. Code : `scripts/reality/` (reality_world, mind_link, meditation_pose) ; position sauvegardée dans `World.data.reality`. Capture : `--kw-shot=f.png --kw-shot-reality[=bubble]`.
+
 ## Inventaire de construction
 - **I / Tab** en mode construction : vignettes par catégories (Connaissance, Mobilier, Architecture, Décoration, Navigation), recherche, survol = description et dimensions.
 - Clic = l'objet rejoint la barre rapide (slot cible) et passe en pose · glisser une vignette sur un slot, clic droit « assigner au slot », ou touche 1-0 au survol · clic droit sur un slot = le vider.

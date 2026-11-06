@@ -388,13 +388,61 @@ static func run(main) -> void:
 	check(StructureKit.material_of(W.data.objects[wid]) == "brique", "matériau modifiable (brique)")
 	for i in [wid, fid, sid]:
 		W.delete_object(i)
+	await mind_test(main)
 	await OSSelfTest.run(main)
 	print("SELFTEST ", "OK" if fails == 0 else "ÉCHECS : %d" % fails)
 	tree.quit(0 if fails == 0 else 1)
 
 
+static func mind_test(main) -> void:
+	var tree: SceneTree = main.get_tree()
+	var pl: KWPlayer = main.player
+	check(main.in_palace, "mind : test démarré dans le palais")
+	var p0: Vector3 = pl.global_position
+	var room0: String = main.current_room
+	main.mind.exit_palace()
+	await tree.create_timer(2.2).timeout
+	check(main.mind.state == MindLink.S.REALITY and not main.in_palace, "mind : sortie du palais → réalité")
+	check(pl.global_position.x > 9000.0 and pl.third_person, "mind : joueur dans la réalité, 3e personne")
+	pl.force_active = true
+	for k in [KEY_B, KEY_TAB, KEY_P, KEY_N, KEY_G, KEY_L, KEY_F, KEY_T, KEY_I]:
+		var ev := InputEventKey.new()
+		ev.keycode = k
+		ev.pressed = true
+		main.get_viewport().push_input(ev)
+	check(main.panel == null and not main.build.active, "mind : touches palais bloquées en réalité")
+	var sh := InputEventKey.new()
+	sh.keycode = KEY_SHIFT
+	sh.pressed = true
+	main.get_viewport().push_input(sh)
+	var sh2 := sh.duplicate()
+	sh2.pressed = false
+	main.get_viewport().push_input(sh2)
+	check(main.mind.state == MindLink.S.TO_PALACE, "mind : Maj court → entrée dans le palais")
+	var click := InputEventMouseButton.new()
+	click.button_index = MOUSE_BUTTON_LEFT
+	click.pressed = true
+	main.get_viewport().push_input(click)
+	check(main.mind.state == MindLink.S.PALACE and main.in_palace, "mind : transition passée par clic")
+	check(pl.global_position.distance_to(p0) < 0.3 and main.current_room == room0, "mind : retour à la dernière position du palais")
+	check(World.data.get("reality", {}).has("pos"), "mind : position réalité sauvegardée")
+	pl.force_active = false
+
+
 static func shot(main, path: String) -> void:
 	var tree: SceneTree = main.get_tree()
+	for a in OS.get_cmdline_user_args():
+		if a.begins_with("--kw-shot-reality"):
+			await tree.create_timer(0.5).timeout
+			if a.ends_with("=bubble"):
+				main.mind.enter_palace()
+				await tree.create_timer(0.75).timeout
+			else:
+				await tree.create_timer(0.5).timeout
+			main.get_viewport().get_texture().get_image().save_png(path)
+			print("capture : ", path)
+			tree.quit()
+			return
 	for a in OS.get_cmdline_user_args():
 		if a.begins_with("--kw-shot-transit="):
 			await tree.create_timer(0.3).timeout

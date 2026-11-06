@@ -19,6 +19,10 @@ var nodes := {} # obj_id -> KWObject
 var current_room := ""
 var panel: KWPanel = null
 var _travelling := false
+## Vrai dans le palais mental ; faux dans la réalité (touches palais bloquées).
+var in_palace := true
+var mind: MindLink
+var start_in_palace := false # tests et captures : démarrage direct dans le palais
 
 
 func _ready() -> void:
@@ -64,6 +68,19 @@ func _ready() -> void:
 	enter_room(World.data.hub)
 	create_tween().tween_property(fade, "color:a", 0.0, 1.0)
 	var args := OS.get_cmdline_user_args()
+	var start_palace := "--kw-test" in args
+	var shot_reality := false
+	for a in args:
+		if a.begins_with("--kw-shot-reality"):
+			shot_reality = true
+	for a in args:
+		if a.begins_with("--kw-shot") and not shot_reality:
+			start_palace = true
+	mind = MindLink.new()
+	mind.main = self
+	add_child(mind)
+	start_in_palace = start_palace
+	mind.begin(start_palace)
 	var direct := false
 	for a in args:
 		if a.begins_with("--kw-save=") or a == "--kw-test" or a.begins_with("--kw-shot"):
@@ -433,6 +450,7 @@ func start_world(path: String) -> void:
 	player.enabled = true
 	fade.color.a = 1.0
 	enter_room(World.data.hub)
+	mind.begin(start_in_palace)
 	create_tween().tween_property(fade, "color:a", 0.0, 0.8)
 	_capture(true)
 
@@ -461,6 +479,8 @@ func _unhandled_input(event: InputEvent) -> void:
 		return
 	if not (event is InputEventKey and event.pressed and not event.echo):
 		return
+	if not in_palace and event.keycode in [KEY_E, KEY_B, KEY_TAB, KEY_H, KEY_N, KEY_L, KEY_G, KEY_F, KEY_P, KEY_T, KEY_I]:
+		return # palais seulement
 	match event.keycode:
 		KEY_E:
 			var id := aimed_object_id()
@@ -491,7 +511,7 @@ func _unhandled_input(event: InputEvent) -> void:
 
 func _physics_process(_delta: float) -> void:
 	# Filet de sécurité : chute sous le sol ou sortie de la salle → retour à l'intérieur.
-	if player == null or current_room == "" or _travelling:
+	if player == null or current_room == "" or _travelling or not in_palace:
 		return
 	var room: Dictionary = World.data.rooms[current_room]
 	var p := player.global_position
@@ -501,7 +521,7 @@ func _physics_process(_delta: float) -> void:
 
 
 func _process(_delta: float) -> void:
-	if panel != null or _travelling or title != null:
+	if panel != null or _travelling or title != null or not in_palace:
 		hud.set_hint("")
 		return
 	var id := aimed_object_id()
