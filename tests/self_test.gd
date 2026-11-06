@@ -414,6 +414,8 @@ static func mind_test(main) -> void:
 	var rw: RealityWorld = main.mind.reality
 	check(rw.city.building_count >= 20 and rw.city.lamp_count > 0 and rw.city.tree_count > 0, "ville : %d bâtiments générés" % rw.city.building_count)
 	check(rw.director.bots.size() >= 1 and rw.city.plaza.size.x > 10.0, "ville : bots présents, place dégagée")
+	check(rw.director.bots.size() == 12 and rw.director.brains[0].home.has("node") and rw.city.places.size() >= 5, "bots niveau 2 : 12 bots avec foyer, lieux nommés")
+	check(rw._clock_label.text.begins_with("Jour"), "bots niveau 2 : heure affichée dans le HUD")
 	var tb: Bot = rw.director.bots[0]
 	pl.teleport(tb.global_position + Vector3(0, 0, 2), 0.0)
 	var e_ev := InputEventKey.new()

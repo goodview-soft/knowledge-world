@@ -45,6 +45,13 @@ var tree_count := 0
 var extent := 0.0               # demi-largeur de la ville
 var plaza := AABB()             # locale à ce noeud
 var sidewalk_loops: Array = []  # boucles de points (Vector3 locaux) le long des trottoirs
+var graph := CityGraph.new()    # graphe piéton (trottoirs, passages, portes)
+var buildings: Array = []       # {idx,pos,size,model,floors,block,role,name,prep,side,door,door_pos,address}
+var places: Dictionary = {}     # id -> {id,name,prep,role,door,door_pos,address}
+var lamp_mat: StandardMaterial3D
+var _blocks := {}               # Vector2i -> {c, sides:{n,s,e,w: [[t,node]]}, corners:{}}
+var _ring := 18.75
+var _street_n := {}
 var _rng := RandomNumberGenerator.new()
 
 
@@ -95,6 +102,7 @@ func build(cfg: Dictionary) -> void:
 	var lots: Array = []
 	var lamps: Array = []
 	var trees: Array = []
+	_ring = (bs - walk) * 0.5
 	var cx := (cols - 1) * 0.5
 	var cz := (rows - 1) * 0.5
 	for i in cols:
@@ -107,9 +115,12 @@ func build(cfg: Dictionary) -> void:
 				plaza = AABB(c + Vector3(-bs * 0.5 + walk, 0, -bs * 0.5 + walk), Vector3(bs - 2 * walk, 0.1, bs - 2 * walk))
 			else:
 				slabs.append(xf)
-				_lots(c, bs - 2.0 * walk, lots)
+				_lots(c, bs - 2.0 * walk, lots, Vector2i(i, j))
 			_props(c, bs, walk, is_plaza, lamps, trees)
 			_loop(c, bs - walk)
+			_block_nodes(i, j, c)
+	_assign_roles(lots, cols, rows)
+	_finish_graph(cols, rows)
 	_slab_mesh(slabs, StructureKit.make_material("beton", Color(0.82, 0.82, 0.8)))
 	_slab_mesh([plaza_xf], StructureKit.make_material("pierre", Color(0.92, 0.9, 0.85)))
 	_buildings(lots, body)
@@ -118,7 +129,7 @@ func build(cfg: Dictionary) -> void:
 
 
 ## Découpe un îlot en parcelles et y pose des bâtiments selon la densité.
-func _lots(center: Vector3, size: float, out: Array) -> void:
+func _lots(center: Vector3, size: float, out: Array, block := Vector2i.ZERO) -> void:
 	var n: int = maxi(1, int(config.get("lots_per_block", 2)))
 	var cell := size / n
 	var dens: float = float(config.get("density", 0.8))
@@ -142,7 +153,7 @@ func _lots(center: Vector3, size: float, out: Array) -> void:
 			var fl := roundi(_val(model.get("floors", 3)))
 			var h := maxi(1, fl) * float(model.get("floor_height", 3.0))
 			var p := center + Vector3((a - (n - 1) * 0.5) * cell, 0, (b - (n - 1) * 0.5) * cell)
-			out.append({"model": model, "pos": p, "size": Vector3(w, h, d)})
+			out.append({"model": model, "pos": p, "size": Vector3(w, h, d), "block": block})
 
 
 func _val(v) -> float:
@@ -307,9 +318,145 @@ func _props_mesh(positions: Array, lamp: bool) -> void:
 		mat.emission = Color(1.0, 0.9, 0.6)
 		mat.emission_energy_multiplier = 0.15
 		lamp_count = positions.size()
+		lamp_mat = mat
 	else:
 		tree_count = positions.size()
 	var xfs: Array = []
 	for p in positions:
 		xfs.append(Transform3D(Basis(Vector3.UP, _rng.randf() * TAU), p))
 	_multi(xfs, am, mat, false)
+
+
+## Allume/éteint les lampadaires (panne).
+func set_lamps(on: bool) -> void:
+	if lamp_mat:
+		lamp_mat.emission_energy_multiplier = 0.15 if on else 0.0
+
+
+# --- Graphe piéton et rôles des bâtiments ---
+
+func _block_nodes(i: int, j: int, c: Vector3) -> void:
+	var e := _ring
+	var corners := {}
+	for k in [["nw", -1, -1], ["ne", 1, -1], ["sw", -1, 1], ["se", 1, 1]]:
+		corners[k[0]] = graph.add_point(c + Vector3(k[1] * e, 0.05, k[2] * e))
+	_blocks[Vector2i(i, j)] = {"c": c, "corners": corners, "sides": {
+		"n": [[-e, corners.nw], [e, corners.ne]], "s": [[-e, corners.sw], [e, corners.se]],
+		"w": [[-e, corners.nw], [e, corners.sw]], "e": [[-e, corners.ne], [e, corners.se]]}}
+
+
+## Ajoute une porte (point de trottoir) sur le côté `side` du bloc, à la coordonnée t.
+func _add_door(block: Vector2i, side: String, t: float) -> Array:
+	var b: Dictionary = _blocks[block]
+	var used: Array = []
+	for it in b.sides[side]:
+		used.append(float(it[0]))
+	t = clampf(t, -_ring + 4.0, _ring - 4.0)
+	var tries := 0
+	while tries < 20:
+		var clash := false
+		for u in used:
+			if absf(u - t) < 1.6:
+				clash = true
+		if not clash:
+			break
+		t = t + 1.7 if t + 1.7 < _ring - 3.0 else t - 8.0
+		tries += 1
+	var c: Vector3 = b.c
+	var p := Vector3.ZERO
+	match side:
+		"n": p = c + Vector3(t, 0.05, -_ring)
+		"s": p = c + Vector3(t, 0.05, _ring)
+		"w": p = c + Vector3(-_ring, 0.05, t)
+		_: p = c + Vector3(_ring, 0.05, t)
+	var id := graph.add_point(p)
+	b.sides[side].append([t, id])
+	return [id, p]
+
+
+func _address(block: Vector2i, side: String) -> String:
+	var streets: Dictionary = config.get("streets", {})
+	var ns: Array = streets.get("ns", ["rue Nord-Sud"])
+	var ew: Array = streets.get("ew", ["rue Est-Ouest"])
+	var nm: String
+	if side == "n" or side == "s":
+		nm = str(ew[(block.y + (1 if side == "s" else 0)) % ew.size()])
+	else:
+		nm = str(ns[(block.x + (1 if side == "e" else 0)) % ns.size()])
+	var n: int = int(_street_n.get(nm, 0))
+	_street_n[nm] = n + 1
+	return "%d %s" % [n * 2 + (1 if side == "n" or side == "w" else 2), nm]
+
+
+func _side_of(l: Dictionary) -> Array:
+	var c: Vector3 = _blocks[l.block].c
+	var d: Vector3 = l.pos - c
+	if absf(d.x) > absf(d.z):
+		return ["e" if d.x > 0.0 else "w", d.z]
+	return ["s" if d.z > 0.0 else "n", d.x]
+
+
+func _assign_roles(lots: Array, cols: int, rows: int) -> void:
+	var cb := Vector2i(cols / 2, rows / 2)
+	var pitch: float = float(config.get("block_size", 40.0)) + float(config.get("street_width", 10.0))
+	for k in lots.size():
+		var l: Dictionary = lots[k]
+		var sd := _side_of(l)
+		var door := _add_door(l.block, sd[0], sd[1])
+		var fh: float = float(l.model.get("floor_height", 3.0))
+		buildings.append({"idx": k, "pos": l.pos, "size": l.size, "model": str(l.model.get("name", "")), "floors": maxi(1, roundi(l.size.y / fh)),
+			"block": l.block, "role": "residence", "name": "", "prep": "", "side": sd[0], "door": door[0], "door_pos": door[1],
+			"address": _address(l.block, sd[0])})
+	for spec in config.get("places", []):
+		var id: String = str(spec.get("id", spec.get("role", "?")))
+		var role: String = str(spec.get("role", id))
+		var pl := {"id": id, "name": str(spec.get("name", id)), "prep": str(spec.get("prep", "à")), "role": role}
+		if spec.has("plaza"):
+			var side: String = str(spec["plaza"])
+			var dr := _add_door(cb, side, 0.0)
+			pl["door"] = dr[0]
+			pl["door_pos"] = dr[1]
+			pl["address"] = "sur la place"
+		else:
+			var near: Array = spec.get("near", [0, 0])
+			var target := Vector3((cb.x + int(near[0]) - (cols - 1) * 0.5) * pitch, 0, (cb.y + int(near[1]) - (rows - 1) * 0.5) * pitch)
+			var best := -1
+			var bd := INF
+			for b in buildings:
+				if b.role != "residence":
+					continue
+				var dd: float = (b.pos - target).length()
+				if spec.has("prefer") and b.model == str(spec["prefer"]):
+					dd -= 120.0
+				if dd < bd:
+					bd = dd
+					best = b.idx
+			if best < 0:
+				continue
+			var bb: Dictionary = buildings[best]
+			bb.role = role
+			bb.name = pl.name
+			bb.prep = pl.prep
+			pl["door"] = bb.door
+			pl["door_pos"] = bb.door_pos
+			pl["address"] = bb.address
+			pl["building"] = best
+		places[id] = pl
+
+
+func _finish_graph(cols: int, rows: int) -> void:
+	for key in _blocks:
+		var b: Dictionary = _blocks[key]
+		for side in b.sides:
+			var arr: Array = b.sides[side]
+			arr.sort_custom(func(x, y) -> bool: return x[0] < y[0])
+			for k in range(arr.size() - 1):
+				graph.link(arr[k][1], arr[k + 1][1])
+		var r: Vector2i = key + Vector2i(1, 0)
+		if _blocks.has(r):
+			graph.link(b.corners.ne, _blocks[r].corners.nw)
+			graph.link(b.corners.se, _blocks[r].corners.sw)
+		var d: Vector2i = key + Vector2i(0, 1)
+		if _blocks.has(d):
+			graph.link(b.corners.sw, _blocks[d].corners.nw)
+			graph.link(b.corners.se, _blocks[d].corners.ne)

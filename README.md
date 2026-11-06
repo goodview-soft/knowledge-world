@@ -66,3 +66,9 @@ Entrée : parler dans la pièce (chat façon Minecraft) · Entrée maintenue : c
 ## Ville & bots (réalité)
 Ville procédurale en motifs générée depuis `data/city/city.json` (grille, rues, trottoirs, modèles de bâtiments : taille, étages, matériau, couleur, fenêtres ; densité, graine). Place centrale dégagée, bâtiments en MultiMesh + shader de fenêtres, une collision par bâtiment (`scripts/reality/city/`).
 Les bots (`data/bots`) marchent sur les trottoirs ; E en visant un bot (< 3 m) ouvre une ligne de saisie (Entrée envoie, Échap ferme). Leur état est sauvegardé dans `World.data.bots`.
+
+### Bots niveau 2 (société)
+12 bots (`data/bots/bots.json` : nom, âge, métier, `work` = lieu, `links` = liens ami/famille/collègue/voisin/tension). `city_builder` donne un rôle aux bâtiments (lieux nommés de `data/city/city.json` → `places`), les autres sont des logements (étage, appartement) ; porte = point de trottoir, graphe piéton + A* (`city_graph.gd`).
+Horloge du jeu (`data/city/events.json` : `day_length_real`, 1200 s = 1 jour ; heure en haut à droite) et emploi du temps (`bot_schedule.gd` : domicile → travail → pause → loisirs/visite → retour, nuit chez soi). Affinités qui évoluent par rencontres (traits/intérêts), événements en données (fête, marché, panne de lampadaires) devenant des faits/ragots, mémoire de ce que dit le joueur, réponses sans IA à « où habites-tu / où vas-tu / où est X ». Seuls les bots proches (< 45 m) sont animés ; état sauvegardé via `BotDirector.to_dict()`.
+Tests : `-s res://scripts/reality/bots/bots_test.gd -- --kw-test`.
+

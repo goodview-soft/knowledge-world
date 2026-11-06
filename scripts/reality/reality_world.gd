@@ -12,6 +12,8 @@ var city: CityBuilder
 var director: BotDirector
 var talk: BotTalk
 var _save_in := 10.0
+var _hud: CanvasLayer
+var _clock_label: Label
 
 const FLOOR_SHADER := """
 shader_type spatial;
@@ -68,23 +70,22 @@ func _ready() -> void:
 	director = BotDirector.new()
 	add_child(director)
 	director.load_brains()
+	director.setup(city)
 	if World.data.has("bots"):
 		director.from_dict(World.data.bots)
-	var pl: AABB = city.plaza
-	pl.position += ORIGIN
-	director.spawn_in(self, pl)
-	var loops: Array = city.sidewalk_loops
-	var near: Array = []
-	for lp in loops:
-		if (lp[0] as Vector3).length() < 90.0:
-			near.append(lp)
-	for bot in director.bots:
-		var lp: Array = (near if not near.is_empty() else loops).pick_random()
-		var pts: Array = []
-		for p in lp:
-			pts.append(ORIGIN + p)
-		bot.global_position = pts[randi() % pts.size()]
-		bot.set_waypoints(pts)
+	director.spawn_in(self)
+	_hud = CanvasLayer.new()
+	_hud.layer = 5
+	_clock_label = Label.new()
+	_clock_label.set_anchors_and_offsets_preset(Control.PRESET_TOP_RIGHT)
+	_clock_label.offset_left = -190
+	_clock_label.offset_top = 10
+	_clock_label.offset_right = -14
+	_clock_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	_clock_label.modulate = Color(1, 1, 1, 0.6)
+	_clock_label.add_theme_font_size_override("font_size", 14)
+	_hud.add_child(_clock_label)
+	add_child(_hud)
 	talk = BotTalk.new()
 	add_child(talk)
 	talk.closed.connect(func() -> void:
@@ -142,6 +143,8 @@ func _process(_dt: float) -> void:
 	if pl == null or director == null:
 		return
 	director.set_listener(pl.global_position)
+	_hud.visible = _active()
+	_clock_label.text = director.clock.text()
 	talk.show_hint(aimed_bot() if _active() else null)
 	_save_in -= _dt
 	if _save_in <= 0.0:

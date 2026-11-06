@@ -30,6 +30,8 @@ const T_MOOD := {
 	"fatiguée": "Je suis un peu épuisée.", "songeur": "Je suis perdu dans mes pensées.",
 	"enthousiaste": "Je déborde d'énergie !", "inspirée": "J'ai plein d'idées en tête.",
 }
+const T_FRIEND := ["Content de te voir, {name} !", "{name} ! Ça fait plaisir.", "Ah, {name}, toujours un plaisir."]
+const T_TENSION := ["Ah, c'est toi, {name}...", "Hmpf, pas maintenant, {name}.", "{name}, on ne va pas recommencer."]
 const T_GENERIC := ["Intéressant, parle-m'en plus.", "Je vois, je vois.", "Hm, pourquoi pas.", "C'est bien possible."]
 
 static func fallback_line(brain: BotBrain, topic := "", partner := "", rng: RandomNumberGenerator = null) -> String:
@@ -44,6 +46,11 @@ static func fallback_line(brain: BotBrain, topic := "", partner := "", rng: Rand
 				pool.append_array(T_TRAIT[k])
 	pool.append_array(T_GENERIC)
 	var line: String = str(pool[rng.randi() % pool.size()]).replace("{topic}", topic)
+	var af := brain.aff(partner) if partner != "" else 0.0
+	if af <= -15.0 and rng.randf() < 0.6:
+		return str(T_TENSION[rng.randi() % T_TENSION.size()]).replace("{name}", partner)
+	if af >= 30.0 and rng.randf() < 0.5:
+		line = str(T_FRIEND[rng.randi() % T_FRIEND.size()]).replace("{name}", partner) + " " + line
 	if rng.randf() < 0.4 and T_MOOD.has(brain.mood):
 		line += " " + T_MOOD[brain.mood]
 	if partner != "" and rng.randf() < 0.3:
@@ -52,11 +59,18 @@ static func fallback_line(brain: BotBrain, topic := "", partner := "", rng: Rand
 
 static func fallback_player(brain: BotBrain, text: String, rng: RandomNumberGenerator = null) -> String:
 	var t := text.to_lower()
+	var nt := BotDialogue.norm_text(text)
+	var own: String = brain.world_info.call(brain, nt) if brain.world_info.is_valid() else brain.own_answer(nt)
+	if own != "":
+		return own
 	if t.contains("entendu") or t.contains("ragot") or t.contains("nouvelle"):
 		return brain.heard_summary()
 	if t.contains("qui es") or t.contains("présente"):
 		return "Je suis %s, %s." % [brain.bot_name, brain.job]
 	return fallback_line(brain, "", "", rng)
+
+static func norm_text(s: String) -> String:
+	return BotDirector.norm(s)
 
 ## Réplique à `partner` ; cb(text: String). heard = dernière phrase du partenaire.
 func say(brain: BotBrain, partner: String, heard: String, cb: Callable) -> void:
@@ -71,6 +85,15 @@ func answer_player(brain: BotBrain, text: String, cb: Callable) -> void:
 		brain.remember(brain.bot_name, r)
 		cb.call(r)
 		return
+	var nt := norm_text(text)
+	var own: String = brain.world_info.call(brain, nt) if brain.world_info.is_valid() else brain.own_answer(nt)
+	if own != "":
+		brain.remember("joueur", text)
+		brain.remember(brain.bot_name, own)
+		cb.call(own)
+		return
+	if not text.contains("?") and text.strip_edges().length() > 8:
+		brain.note_player(text)
 	_enqueue(brain, text, "le joueur", cb, "joueur")
 
 func _enqueue(brain: BotBrain, heard: String, partner: String, cb: Callable, kind: String) -> void:
@@ -133,6 +156,10 @@ static func build_messages(brain: BotBrain, heard: String, partner: String) -> A
 		known.append(str(f["text"]))
 	if not known.is_empty():
 		sys += " Tu sais : " + " | ".join(known.slice(0, 4)) + "."
+	if partner != "" and brain.affinity.has(partner):
+		sys += " Avec %s : %s." % [partner, brain.relation_label(partner)]
+	if brain.reason != "":
+		sys += " En ce moment : " + brain.reason
 	var msgs: Array = [{"role": "system", "content": sys}]
 	for m in brain.memory:
 		msgs.append({"role": "assistant" if m["who"] == brain.bot_name else "user", "content": str(m["text"])})
