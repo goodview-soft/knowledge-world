@@ -394,6 +394,17 @@ static func run(main) -> void:
 
 static func shot(main, path: String) -> void:
 	var tree: SceneTree = main.get_tree()
+	for a in OS.get_cmdline_user_args():
+		if a.begins_with("--kw-shot-transit="):
+			await tree.create_timer(0.3).timeout
+			var st := TransitStage.make(Color(0.85, 0.82, 0.76), Color(0.7, 0.64, 0.84))
+			main.add_child(st)
+			st.play()
+			await tree.create_timer(float(a.substr(18))).timeout
+			main.get_viewport().get_texture().get_image().save_png(path)
+			print("capture : ", path)
+			tree.quit()
+			return
 	if "--kw-shot-structures" in OS.get_cmdline_user_args():
 		var W = tree.root.get_node("World")
 		var h: String = W.data.hub

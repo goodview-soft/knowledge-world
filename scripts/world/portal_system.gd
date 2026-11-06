@@ -377,12 +377,40 @@ func _traverse(e: Entry, ta: Transform3D) -> void:
 	var target := e.target
 	var from: String = main.current_room
 	_cooldown = 0.8
+	if _cinematic_for(e):
+		# L'entre-deux : cinématique de traversée (passable), puis arrivée.
+		main._travelling = true
+		p.enabled = false
+		main.hud.visible = false
+		var src_col := Color(World.data.rooms[from].color) if World.data.rooms.has(from) else color
+		var stage := TransitStage.make(src_col, color)
+		add_child(stage)
+		stage.play()
+		await stage.finished
+		p.cam.make_current()
+		stage.queue_free()
+		main.hud.visible = true
+		p.enabled = main.panel == null
+		main._travelling = false
+		vel = vel * 0.3
+		_cooldown = 1.0
 	main.enter_room(target, from)
 	p.global_position = pos
 	p.rotation = Vector3(0, yaw, 0)
 	p.head.rotation.x = pitch
 	p.velocity = vel
 	play_effect(color)
+
+## Cinématique seulement pour les portails (pas les portes), désactivable,
+## jamais en test automatique.
+func _cinematic_for(e: Entry) -> bool:
+	if "--kw-test" in OS.get_cmdline_user_args():
+		return false
+	var v = KWSettings.get_value("portal_cinematic")
+	if v != null and not bool(v):
+		return false
+	var o: Dictionary = World.data.objects.get(e.obj_id, {})
+	return o.get("type", "") == "portal"
 
 # ------------------------------------------------------------------ effet « wow »
 
