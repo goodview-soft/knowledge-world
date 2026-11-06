@@ -61,6 +61,13 @@ func _level2(dir: BotDirector) -> int:
 		if b.home.is_empty() or int(b.home["node"]) < 0 or pl.is_empty() or str(b.home["address"]) == "" or b.full_name() == b.bot_name:
 			ok = false
 	fails += _chk(ok, "12 bots : foyer, travail et identité valides")
+	var ok_apt := true
+	for b in dir.brains:
+		var plan: Dictionary = city.buildings[int(b.home["building"])]["plan"]
+		var aid: String = str(b.home.get("apartment_id", ""))
+		if not plan["apartments"].has(aid) or not (plan["apartments"][aid]["occupants"] as Array).has(b.bot_name) or int(plan["apartments"][aid]["floor"]) != int(b.home["floor"]):
+			ok_apt = false
+	fails += _chk(ok_apt, "foyers : apartment_id valide, occupant référencé dans l'appartement")
 	# chemin entre deux portes
 	var pa: Array = city.graph.find_path(int(dir.brains[0].home["node"]), int(dir.brains[7].home["node"]))
 	fails += _chk(pa.size() >= 2, "chemin entre deux portes (%d points)" % pa.size())

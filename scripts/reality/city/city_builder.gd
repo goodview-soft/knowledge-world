@@ -10,25 +10,31 @@ shader_type spatial;
 uniform sampler2D wall_tex : source_color, filter_linear_mipmap, repeat_enable;
 uniform vec4 tint : source_color = vec4(1.0);
 uniform vec4 win = vec4(1.4, 1.6, 3.2, 3.2); // largeur fenêtre, hauteur, pas horizontal, hauteur d'étage
+uniform sampler2D win_tex : filter_nearest;
 uniform float rough = 0.9;
 uniform float night = 0.0;
 varying float bseed;
 varying vec3 lp;
 varying vec3 nrm;
 varying float hgt;
+varying vec3 sz;
+varying vec3 nvec;
+varying vec3 rvec;
+varying float rowbase;
 float h31(vec3 p) { return fract(sin(dot(p, vec3(12.9898, 78.233, 37.719))) * 43758.5453); }
 void vertex() {
 	vec3 s = vec3(length(MODEL_MATRIX[0].xyz), length(MODEL_MATRIX[1].xyz), length(MODEL_MATRIX[2].xyz));
 	lp = VERTEX * s + vec3(0.0, s.y * 0.5, 0.0);
 	nrm = NORMAL;
 	hgt = s.y;
+	sz = s;
+	nvec = vec3(INSTANCE_CUSTOM.y, 0.0, INSTANCE_CUSTOM.z);
+	rvec = vec3(nvec.z, 0.0, -nvec.x);
+	rowbase = INSTANCE_CUSTOM.x;
 	bseed = fract(sin(dot(MODEL_MATRIX[3].xz, vec2(12.9898, 78.233))) * 43758.5453);
 }
 // Interior mapping : rayon dans une boîte-pièce (murs, sol, plafond, meubles en silhouette, rideau).
-vec3 room(vec3 cell, vec2 c, vec3 d, float fade, out float lit) {
-	float W = win.z, H = win.w;
-	float D = 3.4 + 2.2 * h31(cell + 1.0);
-	lit = step(h31(cell + 2.0), mix(0.22, 0.55, night));
+vec3 room(vec3 cell, vec2 c, vec3 d, float fade, float W, float H, float D, float lit, vec3 wallc, float kd, float ww) {
 	vec3 o = vec3(c.x, c.y, 0.0);
 	float tx = d.x > 0.0 ? (W - o.x) / d.x : (d.x < 0.0 ? -o.x / d.x : 1e5);
 	float ty = d.y > 0.0 ? (H - o.y) / d.y : (d.y < 0.0 ? -o.y / d.y : 1e5);
@@ -37,7 +43,6 @@ vec3 room(vec3 cell, vec2 c, vec3 d, float fade, out float lit) {
 	bool isz = tz <= min(tx, ty);
 	bool isy = !isz && ty <= tx;
 	vec3 hp = o + d * t;
-	vec3 wallc = 0.55 + 0.4 * vec3(h31(cell + 3.0), h31(cell + 4.0), h31(cell + 5.0));
 	vec3 col;
 	if (isz) {
 		col = wallc;
@@ -51,7 +56,7 @@ vec3 room(vec3 cell, vec2 c, vec3 d, float fade, out float lit) {
 	float tf = (zf - o.z) / d.z;
 	if (tf > 0.0 && tf < t) {
 		vec3 p = o + d * tf;
-		float k = floor(h31(cell + 9.0) * 6.0);
+		float k = kd < 0.5 ? (h31(cell + 9.0) > 0.5 ? 0.0 : 2.0) : (kd < 1.5 ? 1.0 : (kd < 2.5 ? 3.0 : 4.0));
 		float x = p.x / W;
 		bool hit = false;
 		if (k < 1.0) { hit = (x > 0.15 && x < 0.8 && p.y < 0.45) || (x > 0.15 && x < 0.8 && p.y < 0.9 && abs(x - 0.475) > 0.2); }
@@ -65,8 +70,8 @@ vec3 room(vec3 cell, vec2 c, vec3 d, float fade, out float lit) {
 	float cx = o.x + d.x * 0.1 / d.z;
 	float cw = h31(cell + 13.0);
 	float side = step(0.5, h31(cell + 14.0));
-	float edge = mix(cx - (W - win.x) * 0.5, (W + win.x) * 0.5 - cx, side);
-	if (cw > 0.45 && edge < cw * win.x * 0.55) { col = vec3(0.8, 0.5 + 0.4 * h31(cell + 15.0), 0.45 + 0.4 * h31(cell + 16.0)); }
+	float edge = mix(cx - (W - ww) * 0.5, (W + ww) * 0.5 - cx, side);
+	if (cw > 0.45 && edge < cw * ww * 0.55) { col = vec3(0.8, 0.5 + 0.4 * h31(cell + 15.0), 0.45 + 0.4 * h31(cell + 16.0)); }
 	float lightness = lit > 0.5 ? (1.0 - 0.45 * clamp(hp.z / D, 0.0, 1.0)) : 0.4;
 	vec3 lc = mix(vec3(1.0), vec3(1.0, 0.82, 0.55), night);
 	vec3 lcol = lit > 0.5 ? lc * mix(0.9, 1.5, night) : vec3(mix(0.42, 0.03, night));
@@ -81,32 +86,53 @@ void fragment() {
 	vec2 uv = side ? vec2(u, lp.y) : lp.xz;
 	vec3 col = texture(wall_tex, uv * 0.5).rgb * tint.rgb;
 	if (!side) { col *= 0.55; }
-	float m = 0.0;
-	vec2 c = vec2(0.0);
-	if (side && win.x > 0.0 && lp.y > win.w * 0.95 && lp.y < hgt - 0.6) {
-		c = vec2(mod(u, win.z), mod(lp.y, win.w));
-		float x0 = (win.z - win.x) * 0.5;
-		m = step(x0, c.x) * step(c.x, x0 + win.x) * step(0.9, c.y) * step(c.y, 0.9 + win.y);
-		float fr = 0.05;
-		float inner = step(x0 + fr, c.x) * step(c.x, x0 + win.x - fr) * step(0.9 + fr, c.y) * step(c.y, 0.9 + win.y - fr);
-		if (m > 0.5 && inner < 0.5) { col = mix(vec3(0.85), tint.rgb * 0.8, smoothstep(5.0, 25.0, length(VERTEX))); m = 0.0; }
-		else if (m > 0.5) {
-			vec3 cell = vec3(floor(u / win.z), floor(lp.y / win.w), bseed * 91.7);
-			vec3 ray = normalize((INV_VIEW_MATRIX * vec4(-VIEW, 0.0)).xyz);
-			vec3 axu = abs(nrm.x) > 0.5 ? vec3(0.0, 0.0, 1.0) : vec3(1.0, 0.0, 0.0);
-			vec3 d = vec3(dot(ray, axu), ray.y, max(dot(ray, -nrm), 0.03));
-			float lit;
-			float fade = max(smoothstep(5.0, 20.0, length(VERTEX)), 1.0 - smoothstep(0.1, 0.4, dot(ray, -nrm)));
-			vec3 r = room(cell, c, d, fade, lit);
-			float fres = pow(1.0 - clamp(dot(NORMAL, VIEW), 0.0, 1.0), 3.0);
-			vec3 sky = vec3(0.55, 0.68, 0.85) * mix(1.0, 0.05, night);
-			ALBEDO = vec3(0.02);
-			ROUGHNESS = 0.08;
-			METALLIC = 0.0;
-			EMISSION = r * (1.0 - 0.6 * fres) + sky * (0.12 + 0.5 * fres);
+	bool glass = false;
+	if (side && win.w > 0.0 && lp.y > 0.0 && lp.y < hgt - 0.4) {
+		float fh = win.w;
+		int nfl = int(floor(hgt / fh + 0.5));
+		int fl = clamp(int(floor(lp.y / fh)), 0, nfl - 1);
+		float yl = lp.y - float(fl) * fh;
+		float dn = dot(nrm, nvec);
+		float dr = dot(nrm, rvec);
+		int fi = dn > 0.5 ? 0 : (dr > 0.5 ? 1 : (dn < -0.5 ? 2 : 3));
+		float wdt = abs(rvec.x) * sz.x + abs(rvec.z) * sz.z;
+		float dpt = abs(nvec.x) * sz.x + abs(nvec.z) * sz.z;
+		bool along_x = (fi % 2) == 0;
+		float al = along_x ? dot(lp, rvec) + wdt * 0.5 : -dot(lp, nvec) + dpt * 0.5;
+		vec3 axu = along_x ? rvec : -nvec;
+		int row = int(rowbase + 0.5) + fi * nfl + fl;
+		for (int k = 0; k < 8; k++) {
+			vec4 A = texelFetch(win_tex, ivec2(k * 3, row), 0);
+			if (A.y <= 0.0) { break; }
+			float cx = al - (A.x - A.y * 0.5);
+			float cy = yl - A.z;
+			if (cx < 0.0 || cx > A.y || cy < 0.0 || cy > A.w) { continue; }
+			vec4 B = texelFetch(win_tex, ivec2(k * 3 + 1, row), 0);
+			vec4 C = texelFetch(win_tex, ivec2(k * 3 + 2, row), 0);
+			float fr = 0.05;
+			bool inner = cx > fr && cx < A.y - fr && cy > fr && cy < A.w - fr;
+			if (B.y > 7.5) {
+				col = inner ? vec3(0.28, 0.17, 0.1) : vec3(0.85);
+			} else if (!inner) {
+				col = mix(vec3(0.85), tint.rgb * 0.8, smoothstep(5.0, 25.0, length(VERTEX)));
+			} else {
+				vec3 cell = vec3(floor(A.x * 3.1) + float(k), float(fl) + float(fi) * 7.0, bseed * 91.7);
+				vec3 ray = normalize((INV_VIEW_MATRIX * vec4(-VIEW, 0.0)).xyz);
+				vec3 d = vec3(dot(ray, axu), ray.y, max(dot(ray, -nrm), 0.03));
+				float fade = max(smoothstep(5.0, 20.0, length(VERTEX)), 1.0 - smoothstep(0.1, 0.4, dot(ray, -nrm)));
+				vec3 r = room(cell, vec2(al - B.w, yl), d, fade, C.w, fh, max(B.z, 1.5), B.x, C.rgb, B.y, A.y);
+				float fres = pow(1.0 - clamp(dot(NORMAL, VIEW), 0.0, 1.0), 3.0);
+				vec3 sky = vec3(0.55, 0.68, 0.85) * mix(1.0, 0.05, night);
+				ALBEDO = vec3(0.02);
+				ROUGHNESS = 0.08;
+				METALLIC = 0.0;
+				EMISSION = r * (1.0 - 0.6 * fres) + sky * (0.12 + 0.5 * fres);
+				glass = true;
+			}
+			break;
 		}
 	}
-	if (m < 0.5) {
+	if (!glass) {
 		ALBEDO = col;
 		ROUGHNESS = rough;
 	}
@@ -128,6 +154,9 @@ var cols_n := 0
 var rows_n := 0
 var pitch := 50.0
 var wall_mats: Array = []
+var _win_img: Image
+var _win_tex: ImageTexture
+var _lit_px: Dictionary = {}   # id appartement -> [Vector2i] (texels "lit" de ses fenêtres)
 var crossings: Array = []       # [Vector3 a, Vector3 b] : passages piétons (corner à corner)
 var details: CityDetails
 var traffic: Traffic
@@ -262,10 +291,14 @@ func _val(v) -> float:
 
 func _buildings(lots: Array, body: StaticBody3D) -> void:
 	var by_model := {}
+	_window_texture()
 	for l in lots:
 		var key: String = str(l.model.get("name", "?"))
 		if not by_model.has(key):
-			by_model[key] = {"model": l.model, "xf": []}
+			by_model[key] = {"model": l.model, "xf": [], "cd": []}
+		var bb: Dictionary = buildings[building_count]
+		var nv := CityDetails.normal_of(str(bb["side"]))
+		by_model[key].cd.append(Color(float(bb["rowbase"]), nv.x, nv.z, 0.0))
 		by_model[key].xf.append(Transform3D(Basis.from_scale(l.size), l.pos + Vector3(0, l.size.y * 0.5, 0)))
 		var cs := CollisionShape3D.new()
 		var bx := BoxShape3D.new()
@@ -276,7 +309,7 @@ func _buildings(lots: Array, body: StaticBody3D) -> void:
 		building_count += 1
 	for key in by_model:
 		var model: Dictionary = by_model[key].model
-		_multi(by_model[key].xf, BoxMesh.new(), _wall_material(model), true)
+		_multi(by_model[key].xf, BoxMesh.new(), _wall_material(model), true, by_model[key].cd)
 
 
 func _wall_material(model: Dictionary) -> ShaderMaterial:
@@ -291,14 +324,88 @@ func _wall_material(model: Dictionary) -> ShaderMaterial:
 	m.set_shader_parameter("tint", Color(str(model.get("color", "#dddddd"))))
 	m.set_shader_parameter("rough", float(StructureKit.MATERIALS[mid].rough))
 	var fh: float = float(model.get("floor_height", 3.0))
-	var win := Vector4(0, 0, 3.2, fh)
-	match str(model.get("windows", "grid")):
-		"grid": win = Vector4(1.4, minf(1.6, fh - 1.2), 3.2, fh)
-		"tall": win = Vector4(0.9, minf(2.0, fh - 1.0), 2.2, fh)
-		"strip": win = Vector4(3.7, minf(1.4, fh - 1.4), 4.0, fh)
+	var win := Vector4(1.2, 1.4, 3.2, fh)
+	m.set_shader_parameter("win_tex", _win_tex)
 	m.set_shader_parameter("win", win)
 	wall_mats.append(m)
 	return m
+
+
+const KIND_CODE := {"living": 0, "bedroom": 1, "kitchen": 2, "bath": 3, "entry": 4, "corridor": 5, "stair": 6, "hall": 6, "local": 7}
+
+
+## Texture de données des façades : une ligne par (immeuble, façade, étage), 8 fenêtres max,
+## 3 texels par fenêtre : A = (centre, largeur, allège, hauteur), B = (allumée, type de pièce,
+## profondeur réelle, début de la pièce le long de la façade), C = (couleur des murs, largeur de la pièce).
+func _window_texture() -> void:
+	var rows := 0
+	for b in buildings:
+		b["rowbase"] = rows
+		rows += int(b["plan"]["floors"]) * 4
+	_win_img = Image.create(24, maxi(rows, 1), false, Image.FORMAT_RGBAF)
+	_lit_px.clear()
+	for b in buildings:
+		var plan: Dictionary = b["plan"]
+		var nf: int = int(plan["floors"])
+		var counts := {}
+		for wn in plan["windows"]:
+			var fi: int = BuildingPlan.FACADES.find(str(wn["facade"]))
+			var row: int = int(b["rowbase"]) + fi * nf + int(wn["floor"])
+			var k: int = int(counts.get(row, 0))
+			if k >= 8:
+				continue
+			counts[row] = k + 1
+			var room: Dictionary = plan["rooms"][wn["room_id"]]
+			var rc: Array = room["rect"]
+			var ax: bool = fi % 2 == 0
+			var u0: float = float(rc[0]) if ax else float(rc[1])
+			var ww: float = float(rc[2]) if ax else float(rc[3])
+			var dp: float = float(rc[3]) if ax else float(rc[2])
+			var aid: String = str(wn["apartment_id"])
+			var lit := 1.0 if aid == "" or bool(plan["apartments"][aid]["lights_on"]) else 0.0
+			var col := Color(str(room["color"]))
+			_win_img.set_pixel(k * 3, row, Color(float(wn["x"]), float(wn["w"]), float(wn["y"]), float(wn["h"])))
+			_win_img.set_pixel(k * 3 + 1, row, Color(lit, float(KIND_CODE.get(str(room["kind"]), 7)), dp, u0))
+			_win_img.set_pixel(k * 3 + 2, row, Color(col.r, col.g, col.b, ww))
+			if aid != "":
+				if not _lit_px.has(aid):
+					_lit_px[aid] = []
+				_lit_px[aid].append(Vector2i(k * 3 + 1, row))
+		var ex: float = float(plan["entrance"]["x"])
+		var er: int = int(b["rowbase"])
+		var ek: int = int(counts.get(er, 0))
+		_win_img.set_pixel(ek * 3, er, Color(ex, 1.2, 0.0, 2.3))
+		_win_img.set_pixel(ek * 3 + 1, er, Color(0.0, 8.0, 1.0, ex - 0.6))
+		_win_img.set_pixel(ek * 3 + 2, er, Color(0.3, 0.2, 0.1, 1.2))
+	_win_tex = ImageTexture.create_from_image(_win_img)
+
+
+## Allume / éteint les fenêtres d'un appartement (propriété lights_on + texels de façade).
+func set_apartment_lights(bi: int, apartment_id: String, on: bool) -> void:
+	var plan: Dictionary = buildings[bi]["plan"]
+	if not plan["apartments"].has(apartment_id):
+		return
+	plan["apartments"][apartment_id]["lights_on"] = on
+	for px in _lit_px.get(apartment_id, []):
+		var c: Color = _win_img.get_pixelv(px)
+		c.r = 1.0 if on else 0.0
+		_win_img.set_pixelv(px, c)
+	_win_tex.update(_win_img)
+
+
+## Point d'accroche du LOD : fenêtres des appartements occupés à moins de `radius` m de `p` (global).
+## [{building, apartment_id, windows}] — à remplacer par une vraie pièce légère (boîte + meubles + bot).
+func occupied_windows_near(p: Vector3, radius := 25.0) -> Array:
+	var out: Array = []
+	var lp := to_local(p)
+	for b in buildings:
+		if (b["pos"] as Vector3).distance_to(lp) > radius + 15.0:
+			continue
+		for aid in b["plan"]["apartments"]:
+			var a: Dictionary = b["plan"]["apartments"][aid]
+			if not (a["occupants"] as Array).is_empty():
+				out.append({"building": int(b["idx"]), "apartment_id": aid, "windows": BuildingPlan.windows_of(b["plan"], aid)})
+	return out
 
 
 ## Fenêtres allumées la nuit.
@@ -317,15 +424,18 @@ func _slab_mesh(xfs: Array, mat: Material) -> void:
 	_multi(xfs, BoxMesh.new(), mat, false)
 
 
-func _multi(xfs: Array, mesh: Mesh, mat: Material, shadows: bool) -> void:
+func _multi(xfs: Array, mesh: Mesh, mat: Material, shadows: bool, custom: Array = []) -> void:
 	if xfs.is_empty():
 		return
 	var mm := MultiMesh.new()
 	mm.transform_format = MultiMesh.TRANSFORM_3D
+	mm.use_custom_data = not custom.is_empty()
 	mm.mesh = mesh
 	mm.instance_count = xfs.size()
 	for i in xfs.size():
 		mm.set_instance_transform(i, xfs[i])
+		if not custom.is_empty():
+			mm.set_instance_custom_data(i, custom[i])
 	var mi := MultiMeshInstance3D.new()
 	mi.multimesh = mm
 	mi.material_override = mat
@@ -513,11 +623,18 @@ func _assign_roles(lots: Array, cols: int, rows: int) -> void:
 	for k in lots.size():
 		var l: Dictionary = lots[k]
 		var sd := _side_of(l)
-		var door := _add_door(l.block, sd[0], sd[1])
 		var fh: float = float(l.model.get("floor_height", 3.0))
+		var nrm := CityDetails.normal_of(str(sd[0]))
+		var ns: bool = nrm.x == 0.0
+		var pw: float = (l.size as Vector3).x if ns else (l.size as Vector3).z
+		var pd: float = (l.size as Vector3).z if ns else (l.size as Vector3).x
+		var addr := _address(l.block, sd[0])
+		var plan := BuildingPlan.generate("b%d" % k, pw, pd, maxi(1, roundi(l.size.y / fh)), fh, addr)
+		var rsign: float = nrm.z if ns else -nrm.x
+		var door := _add_door(l.block, sd[0], float(sd[1]) + rsign * (float(plan.entrance.x) - pw * 0.5))
 		buildings.append({"idx": k, "pos": l.pos, "size": l.size, "model": str(l.model.get("name", "")), "floors": maxi(1, roundi(l.size.y / fh)),
 			"block": l.block, "role": "residence", "name": "", "prep": "", "side": sd[0], "door": door[0], "door_pos": door[1],
-			"address": _address(l.block, sd[0])})
+			"address": addr, "plan": plan})
 	for spec in config.get("places", []):
 		var id: String = str(spec.get("id", spec.get("role", "?")))
 		var role: String = str(spec.get("role", id))

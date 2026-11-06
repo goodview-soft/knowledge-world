@@ -108,6 +108,9 @@ func assign_homes() -> void:
 			res.append(b)
 	var used := {}
 	var by_name := {}
+	for b in city.buildings:
+		for aid in b["plan"]["apartments"]:
+			(b["plan"]["apartments"][aid]["occupants"] as Array).clear()
 	for br in brains:
 		var bi := -1
 		for l in br.links:
@@ -124,10 +127,14 @@ func assign_homes() -> void:
 		var bd: Dictionary = city.buildings[bi]
 		var n: int = int(used.get(bi, 0))
 		used[bi] = n + 1
-		var fl: int = (n / 2) % int(bd["floors"])
-		var apt: int = fl * 10 + n % 2 + 1
+		var ids: Array = bd["plan"]["apartment_ids"]
+		var aid: String = str(ids[n % ids.size()])
+		var ap: Dictionary = bd["plan"]["apartments"][aid]
+		(ap["occupants"] as Array).append(br.bot_name)
+		var fl: int = int(ap["floor"])
+		var apt: int = fl * 10 + int(ap["unit"])
 		var fl_txt := "rez-de-chaussée" if fl == 0 else "étage %d" % fl
-		br.home = {"building": bi, "floor": fl, "apt": apt, "address": bd["address"], "node": int(bd["door"]),
+		br.home = {"building": bi, "floor": fl, "apt": apt, "apartment_id": aid, "address": bd["address"], "node": int(bd["door"]),
 			"desc": "au %s, %s, appartement %d" % [bd["address"], fl_txt, apt]}
 		br.work_id = br.work_id if city.places.has(br.work_id) else str(city.places.keys()[0])
 	for b in brains:
@@ -249,6 +256,9 @@ func sim(delta: float) -> void:
 	if nt != _night_on:
 		_night_on = nt
 		city.set_night(nt)
+		for hb in brains:
+			if not hb.home.is_empty() and hb.home.has("apartment_id"):
+				city.set_apartment_lights(int(hb.home["building"]), str(hb.home["apartment_id"]), nt)
 	for b in brains:
 		b.decay(delta * 0.002)
 		var bot = _by_name.get(b.bot_name)

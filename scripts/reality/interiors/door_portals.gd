@@ -61,20 +61,20 @@ func door_xf_of(b: Dictionary) -> Transform3D:
 	var half: Vector3 = (b["size"] as Vector3) * 0.5
 	var ns: bool = n.x == 0.0
 	var face: float = half.z if ns else half.x
-	var along_half: float = half.x if ns else half.z
-	var dp: Vector3 = b["door_pos"]
-	var bp: Vector3 = b["pos"]
-	var t: float = (dp.x - bp.x) if ns else (dp.z - bp.z)
-	t = clampf(t, -along_half + 1.6, along_half - 1.6)
-	var p := Vector3(bp.x + (t if ns else 0.0), 0.0, bp.z + (0.0 if ns else t)) + n * (face + 0.05)
+	var plan: Dictionary = b["plan"]
+	var rv := Vector3(n.z, 0.0, -n.x)
+	var p: Vector3 = (b["pos"] as Vector3) + rv * (float(plan["entrance"]["x"]) - float(plan["w"]) * 0.5) + n * (face + 0.05)
 	return city.global_transform * Transform3D(Basis(Vector3.UP, atan2(n.x, n.z)), p)
 
 
 ## Ouvre la porte du bâtiment `bi` sur l'appartement de `who`.
-func open_for(bi: int, who: String, color: Color, present: bool) -> void:
+func open_for(bi: int, who: String, color: Color, present: bool, apartment_id := "") -> void:
 	building = bi
 	a_xf = door_xf_of(city.buildings[bi])
-	apt.generate(who, color, present)
+	var plan: Dictionary = city.buildings[bi]["plan"]
+	if apartment_id == "" or not plan["apartments"].has(apartment_id):
+		apartment_id = str(plan["apartment_ids"][absi(who.hash()) % (plan["apartment_ids"] as Array).size()])
+	apt.generate_building(plan, apartment_id, color, present, who)
 	active = true
 	_leg_quad(0, a_xf)
 	_leg_quad(1, apt.door_xf())

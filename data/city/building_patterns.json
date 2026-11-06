@@ -1,0 +1,26 @@
+{
+	"corridor_w": 1.8,
+	"core_len": 4.0,
+	"hall_w": 3.0,
+	"door_w": 0.9,
+	"door_h": 2.1,
+	"band_min": 2.0,
+	"facade_depth": 5.0,
+	"window": {"w": 1.2, "h": 1.4, "sill": 0.9, "double_min_room": 4.6, "margin": 0.3},
+	"patterns": [
+		{"id": "central", "weight": 3, "min_w": 12.5, "min_d": 12.0},
+		{"id": "L", "weight": 2, "min_w": 13.5, "min_d": 12.0},
+		{"id": "coursive", "weight": 2, "min_w": 12.5, "min_d": 11.0},
+		{"id": "gallery", "weight": 2, "min_w": 0.0, "min_d": 7.8}
+	],
+	"types": {
+		"T1": {"min_len": 3.8},
+		"T2": {"min_len": 7.0},
+		"T3": {"min_len": 9.5}
+	},
+	"kitchen_w": 2.8,
+	"bath_w": 2.0,
+	"ambient_lit": 0.3,
+	"wall_colors": ["#e8dcc8", "#d8e0d0", "#e0d0d0", "#d0d8e4", "#eadfb8", "#d9d2e6", "#f0e8e0"],
+	"corridor_color": "#cfcac0"
+}

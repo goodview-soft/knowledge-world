@@ -451,6 +451,7 @@ static func mind_test(main) -> void:
 	apt.generate("Test")
 	check(apt.room_count >= 4 and apt.furniture_count >= 5 and apt.window_count >= 2, "appartement généré (%s : %d pièces, %d meubles, %d fenêtres)" % [apt.layout_id, apt.room_count, apt.furniture_count, apt.window_count])
 	apt.free()
+	_building_plans(rw)
 	var hb := -1
 	for b in rw.city.buildings:
 		if b["role"] == "residence" and not rw.occupant_of(int(b["idx"])).is_empty():
@@ -458,7 +459,7 @@ static func mind_test(main) -> void:
 			break
 	check(hb >= 0, "appartement : un immeuble habité existe")
 	var oc: Dictionary = rw.occupant_of(hb)
-	rw.portals.open_for(hb, str(oc["who"]), oc["color"], true)
+	rw.portals.open_for(hb, str(oc["who"]), oc["color"], true, str(oc.get("apartment_id", "")))
 	var dxf: Transform3D = rw.portals.a_xf
 	pl.teleport(dxf.origin + dxf.basis.z * 0.4, 0.0)
 	rw.portals.traverse(pl, true)
@@ -467,6 +468,53 @@ static func mind_test(main) -> void:
 	check(pl.global_position.y > -1.0 and pl.global_position.distance_to(dxf.origin) < 2.0, "appartement : sortie vers le trottoir")
 	rw.portals.close()
 	pl.force_active = false
+
+
+static func _building_plans(rw: RealityWorld) -> void:
+	var bs: Array = rw.city.buildings
+	var tall: Dictionary = {}
+	for b in bs:
+		if int(b["plan"]["floors"]) >= 3 and tall.is_empty():
+			tall = b
+	var fails := 0
+	var wins := 0
+	var apts := 0
+	for b in bs:
+		var plan: Dictionary = b["plan"]
+		var again := BuildingPlan.generate(str(plan["id"]), float(plan["w"]), float(plan["d"]), int(plan["floors"]), float(plan["fh"]), str(plan["address"]))
+		if JSON.stringify(again["windows"]) != JSON.stringify(plan["windows"]) or JSON.stringify(again["floors_data"]) != JSON.stringify(plan["floors_data"]):
+			fails += 1
+		for aid in plan["apartments"]:
+			apts += 1
+			if not BuildingPlan.apartment_ok(plan["apartments"][aid]):
+				fails += 1
+		for wn in plan["windows"]:
+			wins += 1
+			var room: Dictionary = BuildingPlan.room_of_window(plan, wn)
+			var fac: String = wn["facade"]
+			var lim: float = float(plan["w"]) if fac in ["front", "back"] else float(plan["d"])
+			if float(wn["w"]) < 1.0 or float(wn["h"]) < 1.2 or float(wn["x"]) - float(wn["w"]) * 0.5 < 0.0 or float(wn["x"]) + float(wn["w"]) * 0.5 > lim or float(wn["y"]) + float(wn["h"]) > float(plan["fh"]) or room.is_empty() or str(room["apartment_id"]) != str(wn["apartment_id"]):
+				fails += 1
+	var wi: Dictionary = BuildingPlan.window_info(tall["plan"], "front", 0)
+	check(fails == 0 and wins > 50 and apts > 20 and not wi.is_empty() and BuildingPlan.windows_of(tall["plan"], str(wi["apartment_id"])).size() >= 0, "plans : déterministes, %d appartements complets, %d fenêtres >= 1,0 x 1,2 m dans les façades (%d erreurs)" % [apts, wins, fails])
+	var path: Array = BuildingPlan.stair_path(tall["plan"])
+	var maxd := 0.0
+	for i in range(1, path.size()):
+		maxd = maxf(maxd, absf((path[i] as Vector3).y - (path[i - 1] as Vector3).y))
+	var top: float = (path[path.size() - 1] as Vector3).y
+	check(maxd <= 0.2 and absf(top - (int(tall["plan"]["floors"]) - 1) * float(tall["plan"]["fh"])) < 0.01 and top >= 2.0 * float(tall["plan"]["fh"]), "escalier : marches <= 0,2 m, atteint l'étage %d (y=%.1f)" % [int(tall["plan"]["floors"]) - 1, top])
+	var bi := int(tall["idx"])
+	var ids: Array = tall["plan"]["apartment_ids"]
+	var up: String = str(ids[ids.size() - 1])
+	var ai := ApartmentInterior.new()
+	ai.generate_building(tall["plan"], up, Color(0.6, 0.5, 0.4), true, "Test")
+	check(ai.room_count >= 3 and ai.window_count >= 3 and ai.floor_count >= 3, "intérieur depuis le plan : hall, escalier, %d pièces, %d fenêtres, %d étages" % [ai.room_count, ai.window_count, ai.floor_count])
+	ai.free()
+	var occ := 0
+	for b in bs:
+		for aid in b["plan"]["apartments"]:
+			occ += (b["plan"]["apartments"][aid]["occupants"] as Array).size()
+	check(occ > 0 and bi >= 0, "foyers : %d occupants référencés dans les appartements" % occ)
 
 
 static func shot(main, path: String) -> void:

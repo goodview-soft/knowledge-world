@@ -192,9 +192,9 @@ func _pick_player_home() -> void:
 func occupant_of(bi: int) -> Dictionary:
 	for br in director.brains:
 		if not br.home.is_empty() and int(br.home["building"]) == bi:
-			return {"who": br.bot_name, "color": br.color, "present": br.kind == "home" and br.path.is_empty()}
+			return {"who": br.bot_name, "apartment_id": str(br.home.get("apartment_id", "")), "color": br.color, "present": br.kind == "home" and br.path.is_empty()}
 	if bi == player_home:
-		return {"who": "toi", "color": Color(0.5, 0.7, 0.9), "present": false}
+		return {"who": "toi", "apartment_id": str(city.buildings[bi]["plan"]["apartment_ids"][0]), "color": Color(0.5, 0.7, 0.9), "present": false}
 	return {}
 
 
@@ -213,7 +213,7 @@ func try_door() -> bool:
 		var to: Vector3 = pl.global_position - dx.origin
 		to.y = 0.0
 		if to.length() < 2.6 and to.dot(dx.basis.z) > -0.2:
-			portals.open_for(int(b["idx"]), str(oc["who"]), oc["color"], bool(oc["present"]))
+			portals.open_for(int(b["idx"]), str(oc["who"]), oc["color"], bool(oc["present"]), str(oc.get("apartment_id", "")))
 			return true
 	return false
 
