@@ -89,7 +89,7 @@ func apply() -> void:
 		return
 	var env: Environment = m.env
 	env.tonemap_mode = Environment.TONE_MAPPER_FILMIC
-	env.tonemap_exposure = 1.05
+	env.tonemap_exposure = 0.88
 	env.adjustment_enabled = on
 	env.adjustment_contrast = 1.12
 	env.adjustment_saturation = 1.18

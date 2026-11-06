@@ -60,7 +60,7 @@ func _init() -> void:
 	add_child(mi)
 	sun = DirectionalLight3D.new()
 	sun.rotation_degrees = Vector3(-52, -35, 0)
-	sun.light_energy = 1.25
+	sun.light_energy = 1.1
 	sun.light_color = Color(1.0, 0.96, 0.9)
 	sun.shadow_enabled = true
 	sun.directional_shadow_max_distance = 40.0
