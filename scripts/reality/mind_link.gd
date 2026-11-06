@@ -154,8 +154,8 @@ func _enter_reality_state() -> void:
 	main.in_palace = false
 	reality.apply_env(main.env, true, _palace_env)
 	var pl: KWPlayer = main.player
-	pl.set_third_person(true, false)
-	pl.avatar.visible = true
+	pl.set_third_person(false, false) # réalité en vue FPS (1re personne)
+	pl.avatar.visible = false
 	pl.enabled = main.title == null
 	if main.get("hud") != null:
 		main.hud.hide_room_title()
@@ -218,7 +218,7 @@ func exit_palace() -> void:
 	var gp := ghost.global_position
 	var gy := ghost.rotation.y
 	pl.teleport(gp, gy)
-	pl.set_third_person(true, false)
+	pl.set_third_person(false, false)
 	pl.avatar.visible = false
 	reality.apply_env(main.env, true, _palace_env)
 	_show_bubble(eye)

@@ -469,7 +469,7 @@ static func mind_test(main) -> void:
 	main.mind.exit_palace()
 	await tree.create_timer(2.2).timeout
 	check(main.mind.state == MindLink.S.REALITY and not main.in_palace, "mind : sortie du palais → réalité")
-	check(pl.global_position.x > 9000.0 and pl.third_person, "mind : joueur dans la réalité, 3e personne")
+	check(pl.global_position.x > 9000.0 and not pl.third_person, "mind : joueur dans la réalité, vue FPS")
 	pl.force_active = true
 	for k in [KEY_B, KEY_TAB, KEY_P, KEY_N, KEY_G, KEY_L, KEY_F, KEY_T, KEY_I]:
 		var ev := InputEventKey.new()
