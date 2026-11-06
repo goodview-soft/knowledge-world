@@ -206,15 +206,19 @@ func try_door() -> bool:
 	for b in city.buildings:
 		if b["role"] != "residence":
 			continue
-		var oc := occupant_of(int(b["idx"]))
-		if oc.is_empty():
-			continue
 		var dx: Transform3D = portals.door_xf_of(b)
 		var to: Vector3 = pl.global_position - dx.origin
 		to.y = 0.0
-		if to.length() < 2.6 and to.dot(dx.basis.z) > -0.2:
-			portals.open_for(int(b["idx"]), str(oc["who"]), oc["color"], bool(oc["present"]), str(oc.get("apartment_id", "")))
+		if to.length() < 3.2 and to.dot(dx.basis.z) > -0.5:
+			var oc := occupant_of(int(b["idx"]))
+			if oc.is_empty(): # immeuble sans habitant connu : on entre quand même
+				portals.open_for(int(b["idx"]), "", Color(0.85, 0.82, 0.76), false, "")
+			else:
+				portals.open_for(int(b["idx"]), str(oc["who"]), oc["color"], bool(oc["present"]), str(oc.get("apartment_id", "")))
 			return true
+	var m := get_tree().current_scene
+	if m != null and "hud" in m:
+		m.hud.toast("Approchez-vous de la porte d'un immeuble (numéro affiché) puis E.")
 	return false
 
 

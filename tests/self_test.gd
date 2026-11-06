@@ -390,6 +390,19 @@ static func run(main) -> void:
 		W.delete_object(i)
 	await mind_test(main)
 	await OSSelfTest.run(main)
+	# Entrer dans n'importe quel immeuble d'habitation (même sans bot).
+	var rw2 = main.mind.reality
+	var tgt_b = null
+	for b in rw2.city.buildings:
+		if b["role"] == "residence" and rw2.occupant_of(int(b["idx"])).is_empty():
+			tgt_b = b
+			break
+	if tgt_b != null:
+		rw2.portals.close()
+		var dx2: Transform3D = rw2.portals.door_xf_of(tgt_b)
+		main.player.global_position = dx2.origin + dx2.basis.z * 1.5 + Vector3(0, 0.05, 0)
+		check(rw2.try_door() and rw2.portals.active, "porte d'un immeuble inoccupé : E ouvre l'entrée")
+		rw2.portals.close()
 	print("SELFTEST ", "OK" if fails == 0 else "ÉCHECS : %d" % fails)
 	tree.quit(0 if fails == 0 else 1)
 
