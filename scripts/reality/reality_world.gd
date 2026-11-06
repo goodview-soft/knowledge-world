@@ -60,7 +60,7 @@ func _init() -> void:
 	add_child(mi)
 	sun = DirectionalLight3D.new()
 	sun.rotation_degrees = Vector3(-52, -35, 0)
-	sun.light_energy = 0.9
+	sun.light_energy = 1.25
 	sun.light_color = Color(1.0, 0.96, 0.9)
 	sun.shadow_enabled = true
 	sun.directional_shadow_max_distance = 40.0
@@ -316,17 +316,17 @@ func apply_env(env: Environment, reality: bool, palace_env: Environment) -> void
 		return
 	var sky := Sky.new()
 	var psm := ProceduralSkyMaterial.new()
-	psm.sky_top_color = Color(0.42, 0.58, 0.82)
-	psm.sky_horizon_color = Color(0.78, 0.84, 0.9)
+	psm.sky_top_color = Color(0.28, 0.5, 0.86)
+	psm.sky_horizon_color = Color(0.72, 0.82, 0.92)
 	psm.ground_horizon_color = Color(0.7, 0.72, 0.7)
 	psm.ground_bottom_color = Color(0.55, 0.57, 0.55)
 	sky.sky_material = psm
 	env.sky = sky
 	env.background_mode = Environment.BG_SKY
 	env.ambient_light_source = Environment.AMBIENT_SOURCE_SKY
-	env.ambient_light_energy = 0.9
+	env.ambient_light_energy = 0.7
 	env.ssao_enabled = false
 	env.ssil_enabled = false
 	env.fog_enabled = true
 	env.fog_light_color = Color(0.74, 0.79, 0.84)
-	env.fog_density = 0.004
+	env.fog_density = 0.0012

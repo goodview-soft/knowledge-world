@@ -42,6 +42,7 @@ func _ready() -> void:
 	ui_root.add_child(hud)
 	chat = ChatOverlay.new()
 	hud.add_child(chat)
+	add_child(PostFX.new())
 	if OS.has_feature("mobile"):
 		ui_root.add_child(TouchControls.new())
 	dim = ColorRect.new()
