@@ -95,7 +95,8 @@ static func run(main) -> void:
 	notes._dirty = true
 	notes.save()
 	check.call("#osapp" in str(World.data.objects[tn].content.text), "notes : édition sauvegardée")
-	check.call("[url=wiki:" in notes.preview.text, "notes : rendu Markdown + liens")
+	notes._render()
+	check.call("Courses OS" in notes.preview.get_parsed_text(), "notes : rendu Markdown + liens")
 	# Journal.
 	var jid: String = os.get_app("journal").open_journal()
 	check.call(World.data.objects.has(jid) and World.data.objects[jid].name == "Journal " + Time.get_date_string_from_system(), "journal : note du jour créée")

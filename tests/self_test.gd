@@ -388,6 +388,7 @@ static func run(main) -> void:
 	check(StructureKit.material_of(W.data.objects[wid]) == "brique", "matériau modifiable (brique)")
 	for i in [wid, fid, sid]:
 		W.delete_object(i)
+	await OSSelfTest.run(main)
 	print("SELFTEST ", "OK" if fails == 0 else "ÉCHECS : %d" % fails)
 	tree.quit(0 if fails == 0 else 1)
 
