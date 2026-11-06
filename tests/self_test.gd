@@ -474,11 +474,37 @@ static func mind_test(main) -> void:
 	var oc: Dictionary = rw.occupant_of(hb)
 	rw.portals.open_for(hb, str(oc["who"]), oc["color"], true, str(oc.get("apartment_id", "")))
 	var dxf: Transform3D = rw.portals.a_xf
+	main.in_palace = false # le filet de sécurité du palais ne doit pas s'appliquer à la réalité
 	pl.teleport(dxf.origin + dxf.basis.z * 0.4, 0.0)
 	rw.portals.traverse(pl, true)
 	check(pl.global_position.y < -400.0 and pl.global_position.distance_to(rw.apartment.global_position) < 4.0, "appartement : entrée par la porte")
+	check(not pl.third_person, "intérieur : 1re personne forcée")
+	await tree.create_timer(3.0).timeout
+	var ay: float = rw.apartment.global_position.y
+	check(pl.global_position.y > ay - 0.2 and pl.global_position.y < ay + 1.0, "intérieur : le joueur reste au-dessus du sol 3 s après la traversée (dy=%.2f)" % (pl.global_position.y - ay))
+	var bplan: Dictionary = rw.city.buildings[hb]["plan"]
+	var box: float = float(bplan["entrance"]["x"])
+	var ids0: Array = bplan["floors_data"][0]["apartments"]
+	var other := ""
+	for aid in ids0:
+		if str(aid) != rw.apartment.apartment_id:
+			other = str(aid)
+			break
+	if other != "":
+		var ocd: Array = bplan["apartments"][other]["corridor_door"]
+		var ocz := 0.0
+		for r in bplan["apartments"][other]["rooms"]:
+			ocz += float((r["rect"] as Array)[1]) + float((r["rect"] as Array)[3]) * 0.5
+		ocz /= float((bplan["apartments"][other]["rooms"] as Array).size())
+		var oia: float = 1.0 if ocz > float(ocd[1]) else -1.0
+		pl.teleport(rw.apartment.global_position + Vector3(float(ocd[0]) - box, 0.05, float(ocd[1]) - oia * 1.0), 0.0)
+		check(rw.portals.interact_inside(pl) and rw.apartment.apartment_id == other and rw.apartment.furniture_count >= 5, "E sur une porte d'appartement : on y entre, meublé (%d meubles)" % rw.apartment.furniture_count)
+		await tree.create_timer(1.0).timeout
+		check(pl.global_position.y > ay - 0.2 and pl.global_position.y < ay + 1.0, "appartement : sol sous les pieds")
+		check(rw.portals.interact_inside(pl) and absf(pl.global_position.z - (float(ocd[1]) - oia * 1.1)) < 0.2, "E sur la porte de l'appartement : retour au couloir")
 	rw.portals.traverse(pl, false)
 	check(pl.global_position.y > -1.0 and pl.global_position.distance_to(dxf.origin) < 2.0, "appartement : sortie vers le trottoir")
+	main.in_palace = true
 	rw.portals.close()
 	pl.force_active = false
 
@@ -535,7 +561,7 @@ static func shot(main, path: String) -> void:
 	for a in OS.get_cmdline_user_args():
 		if a.begins_with("--kw-shot-reality"):
 			await tree.create_timer(0.5).timeout
-			if a.ends_with("=facade") or a.ends_with("=apt"):
+			if a.ends_with("=facade") or a.ends_with("=apt") or a.get_slice("=", 1) in ["hall", "corridor", "room", "room2", "stairs"]:
 				var rw: RealityWorld = main.mind.reality
 				rw.city.set_night(true)
 				var pl: KWPlayer = main.player
@@ -547,7 +573,46 @@ static func shot(main, path: String) -> void:
 				var oc: Dictionary = rw.occupant_of(tb)
 				rw.portals.open_for(tb, str(oc["who"]), oc["color"], true)
 				var dx: Transform3D = rw.portals.a_xf
-				if a.ends_with("=apt"):
+				var kind := a.get_slice("=", 1)
+				if kind in ["hall", "corridor", "room", "stairs", "room2"]:
+					pl.teleport(dx.origin + dx.basis.z * 0.4, 0.0)
+					rw.portals.traverse(pl, true)
+					var plan: Dictionary = rw.city.buildings[tb]["plan"]
+					var ap: Dictionary = plan["apartments"][rw.apartment.apartment_id]
+					var fl: int = int(ap["floor"])
+					var fh: float = float(plan["fh"])
+					var ox: float = float(plan["entrance"]["x"])
+					var pp := Vector2(0, 0.6)
+					var lookat := Vector2(0, 5)
+					var floor_y: float = 0.0
+					match kind:
+						"hall":
+							pp = Vector2(0, 0.7)
+							lookat = Vector2(0, 5)
+						"corridor":
+							floor_y = fl * fh
+							for c in plan["floors_data"][fl]["cells"]:
+								if str(c["kind"]) == "corridor":
+									var rc: Array = c["rect"]
+									pp = Vector2(float(rc[0]) - ox + 0.6, float(rc[1]) + float(rc[3]) * 0.5)
+									lookat = pp + Vector2(8, 0)
+									break
+						"stairs":
+							var sz: Dictionary = plan["stair"]
+							pp = Vector2(float(sz["len"]) - ox + 1.0, clampf(float(sz["z0"]) + 0.65, 0.7, 20.0))
+							lookat = Vector2(-ox, pp.y)
+						_:
+							floor_y = fl * fh
+							for r in ap["rooms"]:
+								if str(r["kind"]) == ("living" if kind == "room" else "bedroom"):
+									var rc: Array = r["rect"]
+									pp = Vector2(float(rc[0]) - ox + 0.5, float(rc[1]) + 0.5)
+									lookat = Vector2(float(rc[0]) - ox + float(rc[2]) * 0.5, float(rc[1]) + float(rc[3]) * 0.5)
+									break
+					var dd := lookat - pp
+					pl.teleport(rw.apartment.global_position + Vector3(pp.x, floor_y + 0.05, pp.y), atan2(-dd.x, -dd.y))
+					pl.head.rotation.x = -0.12
+				elif a.ends_with("=apt"):
 					pl.teleport(dx.origin + dx.basis.z * 0.4, 0.0)
 					rw.portals.traverse(pl, true)
 					pl.global_position += Vector3(0, 0, 0.0)
@@ -563,6 +628,7 @@ static func shot(main, path: String) -> void:
 				await tree.create_timer(0.75).timeout
 			else:
 				await tree.create_timer(0.5).timeout
+			print("SHOTPOS ", main.player.global_position, " palace=", main.in_palace, " fp=", not main.player.third_person)
 			main.get_viewport().get_texture().get_image().save_png(path)
 			print("capture : ", path)
 			tree.quit()

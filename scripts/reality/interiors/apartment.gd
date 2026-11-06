@@ -38,6 +38,7 @@ var _yoff := 0.0
 var floor_count := 0
 var apartment_id := ""
 var _mats := {}
+var _base_mat: StandardMaterial3D
 
 
 static func load_data() -> Dictionary:
@@ -307,6 +308,7 @@ func generate_building(plan: Dictionary, apt_id: String, bot_color := Color(0.7,
 	_body = StaticBody3D.new()
 	_body.collision_layer = 1
 	add_child(_body)
+	_base_mat = _cmat(Color(0.33, 0.28, 0.23))
 	var acc: Array = data.get("accent", ["#886644"])
 	var accent := Color(str(acc[_rng.randi() % acc.size()]))
 	var ox: float = float(plan["entrance"]["x"])
@@ -314,7 +316,7 @@ func generate_building(plan: Dictionary, apt_id: String, bot_color := Color(0.7,
 	for f in floor_count:
 		_building_floor(plan, f, apt_id, ox, accent)
 	_stairs(plan, ox)
-	_box(Vector3(2.4, 0.2, 1.6), Vector3(0, -0.1, -0.8), ObjectRegistry.mat(Color(0.35, 0.33, 0.3)), true)
+	_entrance(plan, ox)
 	if present:
 		_yoff = float(apt["floor"]) * float(plan["fh"])
 		for r in apt["rooms"]:
@@ -323,6 +325,61 @@ func generate_building(plan: Dictionary, apt_id: String, bot_color := Color(0.7,
 				_add_occupant(Rect2(float(rc[0]) - ox, float(rc[1]), float(rc[2]), float(rc[3])), bot_color)
 				break
 	_yoff = 0.0
+
+
+## Palier d'arrivée (hors du bâtiment), cadre de la porte de rue, boîtes aux lettres, plante.
+func _entrance(plan: Dictionary, ox: float) -> void:
+	var wood := _cmat(Color(0.3, 0.2, 0.13))
+	_box(Vector3(3.6, 0.4, 3.0), Vector3(0, -0.2, -1.5), _cmat(Color(0.35, 0.33, 0.3)), true)
+	for sx in [-1, 1]:
+		_box(Vector3(0.1, 2.4, 0.3), Vector3(sx * (DOOR_W * 0.5 + 0.05), 1.2, 0.0), wood, false)
+	_box(Vector3(DOOR_W + 0.2, 0.12, 0.3), Vector3(0, DOOR_H + 0.06, 0.0), wood, false)
+	for c in (plan["floors_data"][0]["cells"] as Array):
+		if str(c["kind"]) != "hall":
+			continue
+		var rc: Array = c["rect"]
+		var ex: float = float(rc[0]) + float(rc[2]) - ox - 0.1
+		for row in 2:
+			for k in 5:
+				var col := Color(0.72, 0.6, 0.2) if (k + row) % 2 == 0 else Color(0.55, 0.58, 0.62)
+				_box(Vector3(0.06, 0.26, 0.2), Vector3(ex - 0.03, 1.0 + row * 0.32, 0.9 + k * 0.26), _cmat(col), false)
+		_label3("BOITES AUX LETTRES", Vector3(ex - 0.04, 1.8, 1.5), -PI * 0.5, 0.004)
+		_label3(str(plan["address"]), Vector3(ex - 0.04, 2.0, 1.5), -PI * 0.5, 0.004)
+		var pl := ObjectRegistry.build({"type": "plant", "name": "plant", "content": {}, "params": {}})
+		pl.position = Vector3(float(rc[0]) - ox + 0.5, 0.0, 0.7)
+		add_child(pl)
+		var rug := ObjectRegistry.build({"type": "rug", "name": "rug", "content": {}, "params": {}})
+		rug.position = Vector3(0, 0.0, 1.2)
+		add_child(rug)
+		break
+
+
+func _label3(t: String, pos: Vector3, yaw: float, px: float) -> void:
+	var l := Label3D.new()
+	l.text = t
+	l.pixel_size = px
+	l.font_size = 64
+	l.outline_size = 8
+	l.modulate = Color(1, 0.96, 0.85)
+	l.position = pos
+	l.rotation.y = yaw
+	add_child(l)
+
+
+func _light(pos: Vector3, rng_: float, energy: float) -> void:
+	var lamp := OmniLight3D.new()
+	lamp.position = pos
+	lamp.omni_range = rng_
+	lamp.light_energy = energy
+	lamp.light_color = Color(1.0, 0.86, 0.66)
+	lamp.shadow_enabled = false
+	add_child(lamp)
+	var m := StandardMaterial3D.new()
+	m.albedo_color = Color(1, 0.95, 0.8)
+	m.emission_enabled = true
+	m.emission = Color(1.0, 0.88, 0.6)
+	m.emission_energy_multiplier = 2.0
+	_box(Vector3(0.45, 0.06, 0.45), pos + Vector3(0, 0.36, 0), m, false)
 
 
 func _building_floor(plan: Dictionary, f: int, apt_id: String, ox: float, accent: Color) -> void:
@@ -349,6 +406,7 @@ func _building_floor(plan: Dictionary, f: int, apt_id: String, ox: float, accent
 		cells.append({"r": u, "kind": "closed", "col": Color(0.8, 0.8, 0.78), "open": false, "wins": [], "rid": aid})
 		_box(Vector3(u.size.x, fh + 0.2, u.size.y), Vector3(u.position.x + u.size.x * 0.5, _yoff + fh * 0.5 - 0.1, u.position.y + u.size.y * 0.5), _cmat(Color(0.8, 0.8, 0.78)), true)
 	var doors: Array = fd["doors"]
+	var fcols := {"living": Color(0.55, 0.4, 0.26), "kitchen": Color(0.72, 0.72, 0.7), "bedroom": Color(0.5, 0.42, 0.34), "corridor": Color(0.36, 0.3, 0.27), "hall": Color(0.5, 0.48, 0.46), "bath": Color(0.7, 0.78, 0.82)}
 	for i in cells.size():
 		var cell: Dictionary = cells[i]
 		if not cell["open"]:
@@ -358,25 +416,55 @@ func _building_floor(plan: Dictionary, f: int, apt_id: String, ox: float, accent
 		var c3 := Vector3(r.position.x + r.size.x * 0.5, 0, r.position.y + r.size.y * 0.5)
 		var target := f == apt_floor and str(plan["rooms"][cell["rid"]]["apartment_id"]) == apt_id
 		if kind == "stair" and f > 0:
-			_box(Vector3(0.1, 0.2, r.size.y), Vector3(r.end.x - 0.05, _yoff - 0.1, c3.z), _cmat(Color(0.45, 0.43, 0.4)), true)
+			_box(Vector3(1.2, 0.2, r.size.y), Vector3(r.end.x - 0.6, _yoff - 0.1, c3.z), _cmat(Color(0.45, 0.43, 0.4)), true)
 		else:
-			var fcol := {"living": Color(0.55, 0.4, 0.26), "kitchen": Color(0.7, 0.7, 0.68), "bedroom": Color(0.5, 0.42, 0.34), "corridor": Color(0.4, 0.38, 0.36)}.get(kind, Color(0.45, 0.42, 0.4)) as Color
+			var fcol: Color = fcols.get(kind, Color(0.45, 0.42, 0.4))
 			_box(Vector3(r.size.x, 0.2, r.size.y), Vector3(c3.x, _yoff - 0.1, c3.z), _cmat(fcol), true)
 		if f == floor_count - 1:
 			_box(Vector3(r.size.x, 0.2, r.size.y), Vector3(c3.x, _yoff + fh + 0.1, c3.z), _cmat(Color(0.93, 0.93, 0.9)), true)
-		if target or kind in ["stair", "corridor", "hall"]:
-			var lamp := OmniLight3D.new()
-			lamp.position = Vector3(c3.x, _yoff + fh - 0.4, c3.z)
-			lamp.omni_range = clampf(maxf(r.size.x, r.size.y) * 1.3, 4.0, 9.0)
-			lamp.light_energy = 1.2
-			lamp.light_color = Color(1.0, 0.92, 0.8)
-			add_child(lamp)
+		var ly: float = _yoff + fh - 0.45
+		if kind == "corridor":
+			var long_x: bool = r.size.x >= r.size.y
+			var ln: float = r.size.x if long_x else r.size.y
+			var cnt: int = maxi(1, roundi(ln / 3.2))
+			for k in cnt:
+				var t: float = (k + 0.5) / float(cnt) - 0.5
+				_light(Vector3(c3.x + (t * ln if long_x else 0.0), ly, c3.z + (0.0 if long_x else t * ln)), 4.5, 1.0)
+		elif kind == "hall" or kind == "stair":
+			_light(Vector3(c3.x, ly, c3.z), 6.0, 1.1)
+		elif target and kind != "bath":
+			_light(Vector3(c3.x, ly, c3.z), clampf(maxf(r.size.x, r.size.y) * 1.2, 3.5, 8.0), 1.2)
 		if target:
 			room_count += 1
 			_furnish(kind, r, accent)
 		for e in 4:
 			_cell_edge(plan, f, cells, i, e, doors, ox)
+	_apt_doors(plan, fd, f, apt_id, ox)
 	_yoff = 0.0
+
+
+## Portes palières : encadrement, vantail (sauf appartement visité : ouverture), numéro sur le couloir.
+func _apt_doors(plan: Dictionary, fd: Dictionary, f: int, apt_id: String, ox: float) -> void:
+	var wood := _cmat(Color(0.3, 0.2, 0.13))
+	var leaf := _cmat(Color(0.42, 0.27, 0.16))
+	for aid in fd["apartments"]:
+		var a: Dictionary = plan["apartments"][aid]
+		var cd: Array = a["corridor_door"]
+		var px: float = float(cd[0]) - ox
+		var ez: float = float(cd[1])
+		var cz := 0.0
+		for r in a["rooms"]:
+			cz += float((r["rect"] as Array)[1]) + float((r["rect"] as Array)[3]) * 0.5
+		cz /= float((a["rooms"] as Array).size())
+		var dirc: float = -1.0 if cz > ez else 1.0 # côté couloir
+		var dw := 0.9
+		for sx in [-1, 1]:
+			_box(Vector3(0.1, 2.2, 0.32), Vector3(px + sx * (dw * 0.5 + 0.05), _yoff + 1.1, ez), wood, false)
+		_box(Vector3(dw + 0.2, 0.12, 0.32), Vector3(px, _yoff + 2.16, ez), wood, false)
+		if aid != apt_id:
+			_box(Vector3(dw, 2.1, 0.24), Vector3(px, _yoff + 1.05, ez), leaf, false)
+			_box(Vector3(0.05, 0.05, 0.06), Vector3(px + 0.32, _yoff + 1.0, ez + dirc * 0.14), _cmat(Color(0.8, 0.7, 0.3)), false)
+		_label3(str((f + 1) * 100 + int(a["unit"])), Vector3(px, _yoff + 1.85, ez + dirc * 0.17), 0.0 if dirc > 0.0 else PI, 0.0045)
 
 
 func _cell_edge(plan: Dictionary, f: int, cells: Array, i: int, e: int, doors: Array, ox: float) -> void:
@@ -421,10 +509,6 @@ func _cell_edge(plan: Dictionary, f: int, cells: Array, i: int, e: int, doors: A
 				if on_line and along > iv[0] - 0.01 and along < iv[1] + 0.01:
 					if nb["open"]:
 						ops.append([along, float(dr["w"]), 0.0, float(dr["h"])])
-					else:
-						var pos := Vector3(along, _yoff + 1.05, fixed) if horiz else Vector3(fixed, _yoff + 1.05, along)
-						var sz := Vector3(float(dr["w"]), 2.1, 0.26) if horiz else Vector3(0.26, 2.1, float(dr["w"]))
-						_box(sz, pos, ObjectRegistry.mat(Color(0.35, 0.22, 0.14)), false)
 			_wall_ops(horiz, fixed, iv[0], iv[1], ops, mat, fh)
 		cur = maxf(cur, iv[1])
 	if hi > cur + 0.01:
@@ -477,6 +561,9 @@ func _wall_ops(horiz: bool, fixed: float, lo: float, hi: float, ops: Array, mat:
 		var size := Vector3(ln, s[3] - s[2], 0.2) if horiz else Vector3(0.2, s[3] - s[2], ln)
 		var pos := Vector3(mid, ym, fixed) if horiz else Vector3(fixed, ym, mid)
 		_box(size, pos, mat, true)
+		if s[2] <= 0.001 and s[3] >= hgt - 0.01 and ln > 0.15 and _base_mat != null:
+			var bs := Vector3(ln, 0.12, 0.25) if horiz else Vector3(0.25, 0.12, ln)
+			_box(bs, Vector3(pos.x, _yoff + 0.06, pos.z), _base_mat, false)
 
 
 func _glass_at(horiz: bool, fixed: float, mid: float, e: int, w: float, h: float, yc: float) -> void:
@@ -494,8 +581,8 @@ func _glass_at(horiz: bool, fixed: float, mid: float, e: int, w: float, h: float
 	add_child(q)
 
 
-## Escalier en U dans la cage : volée montante (voie basse z), palier, volée suivante (voie haute z).
-## Marches visuelles + rampes de collision (pente ~27 deg).
+## Escalier en U dans une cage dédiée : volée basse (voie z basse) vers l'ouest, palier intermédiaire,
+## volée haute (voie z haute) vers l'est ; palier d'étage à l'est. Rampes de collision (invisibles) sous les marches.
 func _stairs(plan: Dictionary, ox: float) -> void:
 	var s: Dictionary = plan["stair"]
 	var fh: float = float(plan["fh"])
@@ -507,36 +594,41 @@ func _stairs(plan: Dictionary, ox: float) -> void:
 	var zw: float = float(s["w"])
 	var sx: float = float(s["start_x"]) - ox
 	var ex: float = sx - tr * n
-	var mat := _cmat(Color(0.62, 0.6, 0.56))
+	var wx0: float = -ox
+	var mat := _cmat(Color(0.64, 0.6, 0.55))
+	var mat2 := _cmat(Color(0.75, 0.72, 0.68))
 	var ang := atan2(rise, tr)
 	var rl := sqrt(pow(tr * n, 2) + pow(rise * n, 2)) + 0.2
+	var spine: float = zw - 2.0 * lane
 	for f in floor_count - 1:
 		var y0: float = f * fh
 		for i in n:
-			var ya: float = rise * (i + 1)
-			_box(Vector3(tr, ya, lane), Vector3(sx - tr * (i + 0.5), y0 + ya * 0.5, z0 + lane * 0.5), mat, false)
-			var yb: float = fh * 0.5 + rise * (i + 1)
-			_box(Vector3(tr, yb, lane), Vector3(ex + tr * (i + 0.5), y0 + yb * 0.5, z0 + zw - lane * 0.5), mat, false)
-		_box(Vector3(-ex, 0.2, zw), Vector3(ex * 0.5, y0 + fh * 0.5 - 0.1, z0 + zw * 0.5), mat, true)
-		_ramp(Vector3((sx + ex) * 0.5, y0 + rise * n * 0.5 + rise * 0.5 - 0.05, z0 + lane * 0.5), -ang, rl, lane)
-		_ramp(Vector3((sx + ex) * 0.5, y0 + fh * 0.5 + rise * n * 0.5 + rise * 0.5 - 0.05, z0 + zw - lane * 0.5), ang, rl, lane)
-		_box(Vector3(sx - ex, fh + 1.0, zw - 2.0 * lane), Vector3((sx + ex) * 0.5, y0 + (fh + 1.0) * 0.5, z0 + zw * 0.5), _cmat(Color(0.75, 0.73, 0.7)), true)
+			var h: float = rise * minf(float(i + 1), 2.0)
+			_box(Vector3(tr, h, lane - 0.05), Vector3(sx - tr * (i + 0.5), y0 + rise * (i + 1) - h * 0.5, z0 + lane * 0.5), mat, false)
+			_box(Vector3(tr, h, lane - 0.05), Vector3(ex + tr * (i + 0.5), y0 + fh * 0.5 + rise * (i + 1) - h * 0.5, z0 + zw - lane * 0.5), mat, false)
+		_box(Vector3(ex - wx0, 0.2, zw), Vector3((ex + wx0) * 0.5, y0 + fh * 0.5 - 0.1, z0 + zw * 0.5), mat2, true)
+		var cy: float = rise * 0.4 + rise * n * 0.5 - 0.06
+		_ramp(Vector3((sx + ex) * 0.5, y0 + cy, z0 + lane * 0.5), -ang, rl, lane)
+		_ramp(Vector3((sx + ex) * 0.5, y0 + fh * 0.5 + cy, z0 + zw - lane * 0.5), ang, rl, lane)
+		_box(Vector3(sx - ex, fh, spine), Vector3((sx + ex) * 0.5, y0 + fh * 0.5, z0 + zw * 0.5), mat2, true)
+	# garde-corps : étage du haut, voie basse (pas de volée au-dessus)
+	var ytop: float = (floor_count - 1) * fh
+	_box(Vector3(0.08, 1.0, lane), Vector3(sx, ytop + 0.5, z0 + lane * 0.5), _cmat(Color(0.3, 0.28, 0.26)), true)
 
 
 func _ramp(pos: Vector3, ang: float, length: float, width: float) -> void:
 	var cs := CollisionShape3D.new()
 	var bs := BoxShape3D.new()
-	bs.size = Vector3(length, 0.1, width)
+	bs.size = Vector3(length, 0.12, width)
 	cs.shape = bs
 	cs.position = pos
 	cs.rotation.z = ang
 	_body.add_child(cs)
 	var mi := MeshInstance3D.new()
 	var bm := BoxMesh.new()
-	bm.size = bs.size
+	bm.size = Vector3(length, 0.12, width)
 	mi.mesh = bm
 	mi.material_override = _cmat(Color(0.5, 0.48, 0.45))
 	mi.position = pos
 	mi.rotation.z = ang
-	mi.visible = false
 	add_child(mi)

@@ -271,12 +271,25 @@ func set_hint(t: String) -> void:
 	hint_box.visible = t != ""
 
 
+var _title_tw: Tween
+
+
+func hide_room_title() -> void:
+	if _title_tw != null:
+		_title_tw.kill()
+	title.modulate.a = 0.0
+	subtitle.modulate.a = 0.0
+
+
 func show_room_title(t: String, sub: String) -> void:
+	if get_tree().current_scene != null and get_tree().current_scene.get("in_palace") == false:
+		return # pas de titre de salle du palais dans la réalité
 	title.text = t
 	subtitle.text = sub.to_upper()
 	title.modulate.a = 0.0
 	subtitle.modulate.a = 0.0
 	var tw := create_tween().set_parallel()
+	_title_tw = tw
 	tw.tween_property(title, "modulate:a", 1.0, 0.6)
 	tw.tween_property(subtitle, "modulate:a", 0.9, 0.6)
 	tw.chain().tween_interval(2.0)

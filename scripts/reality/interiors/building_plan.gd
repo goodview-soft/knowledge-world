@@ -50,10 +50,16 @@ static func generate(building_id: String, w: float, d: float, floors: int, fh: f
 			rows = [{"x0": cl, "x1": w, "z0": cw, "z1": d, "fac": "back"}]
 			corr = [[cl, 0.0, w - cl, cw]]
 	var gallery: bool = pat == "gallery"
-	var n: int = mini(10, ceili(fh * 0.5 / 0.17 - 0.001))
+	var n: int = ceili(fh * 0.5 / 0.19 - 0.001)
+	var tread: float = clampf((cl - 1.2 - 1.3) / float(n), 0.26, 0.3)
+	var z0s: float = zs - 1.4
+	if z0s < 2.4:
+		z0s = 0.0
+	if d - (z0s + 3.0) < 2.4:
+		z0s = d - 3.0
 	var P := {"id": building_id, "address": address, "pattern": pat, "w": w, "d": d, "floors": floors, "fh": fh,
 		"entrance": {"x": cl + 1.5, "w": 1.2, "h": 2.3},
-		"stair": {"x0": 0.0, "len": cl, "z0": zs, "w": cw, "lane": 0.85, "n": n, "tread": 0.3, "rise": fh * 0.5 / float(n), "start_x": cl - 0.1},
+		"stair": {"x0": 0.0, "len": cl, "z0": z0s, "w": 3.0, "lane": 1.3, "n": n, "tread": tread, "rise": fh * 0.5 / float(n), "start_x": cl - 1.2},
 		"floors_data": [], "apartments": {}, "apartment_ids": [], "rooms": {}, "windows": [],
 		"facade_windows": {"front": [], "right": [], "back": [], "left": []}}
 	var palette: Array = c.wall_colors
@@ -62,10 +68,10 @@ static func generate(building_id: String, w: float, d: float, floors: int, fh: f
 		var cells: Array = fd.cells
 		var unit := 0
 		# noyau : escalier + locaux ; couloir(s) ; hall au rez-de-chaussée
-		_cell(P, fd, "b%s-%d-stair" % [building_id, f], "stair", "Escalier", [0.0, zs, cl, cw], "", [] if fh < 2.8 else [_win("left", zs + cw * 0.5, fh * 0.5 + 0.1, 1.0, 1.2)])
-		if zs > 2.4:
-			_cell(P, fd, "b%s-%d-local-f" % [building_id, f], "local", "Local", [0.0, 0.0, cl, zs], "", [_win("front", cl * 0.5)] if not gallery else [])
-		var bz: float = zs + cw
+		_cell(P, fd, "b%s-%d-stair" % [building_id, f], "stair", "Escalier", [0.0, z0s, cl, 3.0], "", [] if fh < 2.8 else [_win("left", z0s + 1.5, fh * 0.5 + 0.1, 1.0, 1.2)])
+		if z0s > 2.4:
+			_cell(P, fd, "b%s-%d-local-f" % [building_id, f], "local", "Local", [0.0, 0.0, cl, z0s], "", [_win("front", cl * 0.5)] if not gallery else [])
+		var bz: float = z0s + 3.0
 		if d - bz > 2.4:
 			_cell(P, fd, "b%s-%d-local-b" % [building_id, f], "local", "Local", [0.0, bz, cl, d - bz], "", [_win("back", cl * 0.5)])
 		var ci := 0
@@ -85,8 +91,9 @@ static func generate(building_id: String, w: float, d: float, floors: int, fh: f
 		if not gallery and f == 0:
 			x_off = hw
 			_cell(P, fd, "b%s-0-hall" % building_id, "hall", "Hall", [cl, 0.0, hw, zs], "", [])
-			fd.doors.append({"x": cl + hw * 0.5, "z": zs, "w": 1.0, "h": 2.1, "axis": "x"})
-		fd.doors.append({"x": cl, "z": zs + cw * 0.5, "w": 1.7, "h": 2.3, "axis": "z"})
+			fd.doors.append({"x": cl + hw * 0.5, "z": zs, "w": 1.2, "h": 2.2, "axis": "x"})
+			fd.doors.append({"x": cl, "z": clampf(z0s + 0.65, z0s + 0.62, zs - 0.62), "w": 1.2, "h": 2.2, "axis": "z"})
+		fd.doors.append({"x": cl, "z": zs + 0.9, "w": 1.2, "h": 2.2, "axis": "z"})
 		var ids: Array = []
 		for row in rows:
 			var rw: Dictionary = row
@@ -311,15 +318,17 @@ static func stair_path(plan: Dictionary) -> Array:
 	var fh: float = plan.fh
 	var n: int = s.n
 	var rise: float = s.rise
+	var tr: float = s.tread
 	var out: Array = []
 	var za: float = float(s.z0) + float(s.lane) * 0.5
 	var zb: float = float(s.z0) + float(s.w) - float(s.lane) * 0.5
+	var sx: float = s.start_x
 	for f in int(plan.floors) - 1:
 		var y0: float = f * fh
-		out.append(Vector3(float(s.len) + 0.5, y0, za))
+		out.append(Vector3(float(s.len) + 0.5, y0, zb))
+		out.append(Vector3(sx + 0.5, y0, za))
 		for i in n + 1:
-			out.append(Vector3(float(s.start_x) - 0.3 * i, y0 + rise * i, za))
-		out.append(Vector3(0.45, y0 + fh * 0.5, float(s.z0) + float(s.w) * 0.5))
+			out.append(Vector3(sx - tr * i, y0 + rise * i, za))
 		for i in n + 1:
-			out.append(Vector3(float(s.start_x) - 0.3 * (n - i), y0 + fh * 0.5 + rise * i, zb))
+			out.append(Vector3(sx - tr * (n - i), y0 + fh * 0.5 + rise * i, zb))
 	return out

@@ -112,6 +112,10 @@ func _doors_and_signs() -> void:
 		var t: float = (dp.x - bp.x) if ns else (dp.z - bp.z)
 		t = clampf(t, -along_half + 1.6, along_half - 1.6)
 		var p := Vector3(bp.x + (t if ns else 0.0), 0.0, bp.z + (0.0 if ns else t)) + n * (face + 0.05)
+		if b.has("plan") and str(b["role"]) == "residence":
+			var rvv := Vector3(n.z, 0.0, -n.x)
+			p = bp + rvv * (float(b["plan"]["entrance"]["x"]) - float(b["plan"]["w"]) * 0.5) + n * (face + 0.05)
+			p.y = 0.0
 		var yaw := atan2(n.x, n.z)
 		var bas := Basis(Vector3.UP, yaw)
 		door_xf.append(Transform3D(bas, p + Vector3(0, 1.1, 0)))

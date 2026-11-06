@@ -199,9 +199,25 @@ func occupant_of(bi: int) -> Dictionary:
 
 
 ## Porte résidentielle (avec habitant) à moins de 2,6 m du joueur : ouvre le portail.
+func occupant_of_apt(bi: int, aid: String) -> Dictionary:
+	for br in director.brains:
+		if not br.home.is_empty() and int(br.home["building"]) == bi and str(br.home.get("apartment_id", "")) == aid:
+			return {"who": br.bot_name, "color": br.color, "present": br.kind == "home" and br.path.is_empty()}
+	if bi == player_home and aid == str(city.buildings[bi]["plan"]["apartment_ids"][0]):
+		return {"who": "toi", "color": Color(0.5, 0.7, 0.9), "present": false}
+	return {"who": "", "color": Color(0.85, 0.82, 0.76), "present": false}
+
+
 func try_door() -> bool:
 	var pl := _main_player()
-	if pl == null or portals == null or portals.is_inside(pl):
+	if pl == null or portals == null:
+		return false
+	if portals.is_inside(pl):
+		if portals.active and portals.interact_inside(pl):
+			return true
+		var mm := get_tree().current_scene
+		if mm != null and "hud" in mm:
+			mm.hud.toast("Approchez-vous d'une porte (appartement ou rue) puis E.")
 		return false
 	for b in city.buildings:
 		if b["role"] != "residence":
