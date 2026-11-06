@@ -176,7 +176,10 @@ func _process(dt: float) -> void:
 	var sd := street_door(building)
 	_legs[0]["quad"].visible = inside or sd.openness() > 0.45
 	_poll_residents(dt, inside)
-	var cx := p.cam.global_transform
+	var acam: Camera3D = p.get_viewport().get_camera_3d()
+	if acam == null:
+		acam = p.cam
+	var cx := acam.global_transform
 	var vsz := p.get_viewport().get_visible_rect().size
 	for k in 2:
 		var src := a_xf if k == 0 else apt.door_xf()
@@ -191,7 +194,8 @@ func _process(dt: float) -> void:
 				vp.size = sz
 			var cam: Camera3D = leg["cam"]
 			cam.global_transform = dst * FLIP * src.affine_inverse() * cx
-			cam.fov = p.cam.fov
+			cam.fov = acam.fov
+			cam.keep_aspect = acam.keep_aspect
 	# traversée à pied
 	if _cool > 0.0 or not p.enabled:
 		return

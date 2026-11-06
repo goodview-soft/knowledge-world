@@ -7,22 +7,6 @@ extends Node3D
 const PATH := "res://data/city/apartment_layouts.json"
 const DOOR_W := 1.2
 const DOOR_H := 2.3
-const SKY_SHADER := """
-shader_type spatial;
-render_mode unshaded;
-uniform float seed = 0.0;
-float h(float x) { return fract(sin(x * 12.9898 + seed) * 43758.5453); }
-void fragment() {
-	vec3 sky = mix(vec3(0.75, 0.84, 0.95), vec3(0.4, 0.6, 0.9), 1.0 - UV.y);
-	float col = floor(UV.x * 9.0);
-	float top = 0.15 + 0.4 * h(col);
-	float far = 0.1 + 0.3 * h(col + 40.0);
-	vec3 c = sky;
-	if ((1.0 - UV.y) < far) { c = vec3(0.55, 0.62, 0.72); }
-	if ((1.0 - UV.y) < top) { c = vec3(0.32, 0.36, 0.42); vec2 w = fract(UV * vec2(9.0, 22.0)); if (w.x > 0.3 && w.x < 0.7 && w.y > 0.3 && w.y < 0.7 && h(col + floor(UV.y * 22.0) * 3.0) > 0.5) { c = vec3(1.0, 0.9, 0.6); } }
-	ALBEDO = c;
-}
-"""
 
 var data: Dictionary = {}
 var layout_id := ""
@@ -33,7 +17,10 @@ var window_count := 0
 var _body: StaticBody3D
 var _rng := RandomNumberGenerator.new()
 var _wall_mat: StandardMaterial3D
-var _sky_shader: Shader
+var room_plans: Array = []   # pièces meublées : {kind, rect, doors, wins, items} (vérifiable)
+var _hour := 17.5
+var _hour_t := 0.0
+var _wlights: Array = []
 var _yoff := 0.0
 var door_nodes := {}   # id d'appartement -> HingedDoor (couloirs de l'immeuble courant)
 var floor_count := 0
@@ -69,8 +56,9 @@ func generate(seed_str: String, bot_color := Color(0.7, 0.5, 0.4), present := fa
 	var acc: Array = data.get("accent", ["#886644"])
 	_wall_mat = ObjectRegistry.mat(Color(str(pal[_rng.randi() % pal.size()])), 0.0, 0.9)
 	var accent := Color(str(acc[_rng.randi() % acc.size()]))
-	_sky_shader = Shader.new()
-	_sky_shader.code = SKY_SHADER
+	room_plans.clear()
+	_wlights.clear()
+	_hour = _clock_hour()
 	_body = StaticBody3D.new()
 	_body.collision_layer = 1
 	add_child(_body)
@@ -94,6 +82,8 @@ func door_xf() -> Transform3D:
 
 func _room(i: int, rooms: Array, rects: Array, hgt: float, accent: Color) -> void:
 	var r: Rect2 = rects[i]
+	var dl: Array = []
+	var wl: Array = []
 	var kind: String = str(rooms[i].kind)
 	room_count += 1
 	var fcol := {"entry": Color(0.45, 0.4, 0.36), "living": Color(0.55, 0.4, 0.26), "kitchen": Color(0.7, 0.7, 0.68), "bedroom": Color(0.5, 0.42, 0.34)}.get(kind, Color(0.5, 0.45, 0.4)) as Color
@@ -134,25 +124,28 @@ func _room(i: int, rooms: Array, rects: Array, hgt: float, accent: Color) -> voi
 		var cur := lo
 		for iv in ivs:
 			if iv[0] > cur + 0.01:
-				_ext_wall(horiz, fixed, cur, iv[0], e, kind == "entry" and e == 0 and i == 0, hgt)
+				_ext_wall(horiz, fixed, cur, iv[0], e, kind == "entry" and e == 0 and i == 0, hgt, dl, wl, kind)
 			var dw: bool = int(iv[2]) > i
+			dl.append({"e": e, "c": (iv[0] + iv[1]) * 0.5, "w": 1.0})
 			if dw:
 				_wall(horiz, fixed, iv[0], iv[1], (iv[0] + iv[1]) * 0.5, 1.0, 0.0, 2.1, hgt)
 			else:
 				pass
 			cur = maxf(cur, iv[1])
 		if hi > cur + 0.01:
-			_ext_wall(horiz, fixed, cur, hi, e, kind == "entry" and e == 0 and i == 0, hgt)
-	_furnish(kind, r, accent)
+			_ext_wall(horiz, fixed, cur, hi, e, kind == "entry" and e == 0 and i == 0, hgt, dl, wl, kind)
+	_furnish(kind, r, accent, dl, wl)
 
 
-func _ext_wall(horiz: bool, fixed: float, lo: float, hi: float, e: int, is_door: bool, hgt: float) -> void:
+func _ext_wall(horiz: bool, fixed: float, lo: float, hi: float, e: int, is_door: bool, hgt: float, dl: Array, wl: Array, kind: String) -> void:
 	if is_door:
 		_wall(horiz, fixed, lo, hi, 0.0, DOOR_W, 0.0, DOOR_H, hgt)
+		dl.append({"e": e, "c": 0.0, "w": DOOR_W})
 	elif hi - lo >= 2.4:
 		var mid := (lo + hi) * 0.5
 		_wall(horiz, fixed, lo, hi, mid, 1.5, 0.9, 2.1, hgt)
-		_glass(horiz, fixed, mid, e)
+		wl.append({"e": e, "c": mid, "w": 1.5})
+		_glass(horiz, fixed, mid, e, kind)
 	else:
 		_wall(horiz, fixed, lo, hi, 0.0, 0.0, 0.0, 0.0, hgt)
 
@@ -179,20 +172,63 @@ func _wall(horiz: bool, fixed: float, lo: float, hi: float, gc: float, gw: float
 		_box(size, pos, _wall_mat, true)
 
 
-func _glass(horiz: bool, fixed: float, mid: float, e: int) -> void:
+func _glass(horiz: bool, fixed: float, mid: float, e: int, kind := "living") -> void:
 	window_count += 1
-	var q := MeshInstance3D.new()
-	var qm := QuadMesh.new()
-	qm.size = Vector2(1.5, 1.2)
-	q.mesh = qm
-	var m := ShaderMaterial.new()
-	m.shader = _sky_shader
-	m.set_shader_parameter("seed", float(window_count) * 7.3 + float(_rng.randi() % 50))
-	q.material_override = m
-	var yaw: float = [0.0, PI, PI * 0.5, -PI * 0.5][e]
-	q.rotation.y = yaw
-	q.position = Vector3(mid, 1.5, fixed) if horiz else Vector3(fixed, 1.5, mid)
-	add_child(q)
+	_dress_at(horiz, fixed, mid, e, 1.5, 1.2, 1.5, kind, "%s-%d" % [occupant, window_count])
+
+
+## Vue + habillage d'une fenêtre ; une lumière douce (rai) selon l'heure pour les premières fenêtres.
+func _dress_at(horiz: bool, fixed: float, mid: float, e: int, w: float, h: float, yc: float, kind: String, key: String) -> void:
+	var node := WindowDress.build(w, h, WindowDress.pick_kind(kind, key), key, _hour)
+	node.rotation.y = [0.0, PI, PI * 0.5, -PI * 0.5][e]
+	node.position = Vector3(mid, yc, fixed) if horiz else Vector3(fixed, yc, mid)
+	add_child(node)
+	if _wlights.size() < 10 and kind != "bath":
+		var sp := SpotLight3D.new()
+		sp.position = Vector3(0, 0.2, 0.15)
+		sp.rotation_degrees.x = -35.0
+		sp.spot_range = 5.0
+		sp.spot_angle = 50.0
+		sp.light_energy = 0.0
+		sp.shadow_enabled = false
+		node.add_child(sp)
+		_wlights.append(sp)
+		_refresh_lights()
+
+
+func _clock_hour() -> float:
+	var n: Node = self
+	while n != null:
+		var d = n.get("director")
+		if d != null and d.get("clock") != null:
+			return float(d.clock.hour())
+		n = n.get_parent()
+	return _hour
+
+
+func _refresh_lights() -> void:
+	var day: float = WindowDress.light_for(_hour).x
+	var col := WindowDress.light_color(_hour)
+	for l in _wlights:
+		if is_instance_valid(l):
+			(l as SpotLight3D).light_energy = 1.6 * day
+			(l as SpotLight3D).light_color = col
+
+
+func _process(dt: float) -> void:
+	_hour_t -= dt
+	if _hour_t > 0.0 or not is_inside_tree():
+		return
+	_hour_t = 2.0
+	var hnew := _clock_hour()
+	if absf(hnew - _hour) < 0.01:
+		return
+	_hour = hnew
+	_refresh_lights()
+	for c in get_children():
+		var sky := c.get_node_or_null("Sky")
+		if sky != null:
+			((sky as MeshInstance3D).material_override as ShaderMaterial).set_shader_parameter("hour", _hour)
 
 
 func _box(size: Vector3, pos: Vector3, mat: Material, collide: bool) -> void:
@@ -212,29 +248,20 @@ func _box(size: Vector3, pos: Vector3, mat: Material, collide: bool) -> void:
 		_body.add_child(cs)
 
 
-func _furnish(kind: String, r: Rect2, accent: Color) -> void:
-	var sets: Array = data.get("furniture", {}).get(kind, [])
-	if sets.is_empty():
-		return
-	var set: Array = sets[_rng.randi() % sets.size()]
-	var mirror := _rng.randf() < 0.5
-	for it in set:
-		if _rng.randf() > float(it.get("opt", 1.0)):
-			continue
-		var at: Array = it.at
-		var fx: float = 1.0 - float(at[0]) if mirror else float(at[0])
-		var rot: float = float(it.get("rot", 0.0))
-		if mirror and absf(rot) == 90.0:
-			rot = -rot
-		var pos := Vector3(r.position.x + fx * r.size.x, _yoff, r.position.y + float(at[1]) * r.size.y)
-		var t: String = str(it.type)
+func _furnish(kind: String, r: Rect2, accent: Color, dl: Array, wl: Array) -> void:
+	var items: Array = FurnitureLayout.plan_room(kind, r, dl, wl, _rng)
+	room_plans.append({"kind": kind, "rect": r, "doors": dl, "wins": wl, "items": items, "yoff": _yoff})
+	for it in items:
+		var t: String = str(it["type"])
 		var n: Node3D
-		if t == "bed":
-			n = _bed(accent)
+		if t in FurnitureLayout.CUSTOM:
+			n = FurnitureLayout.make(t, accent)
 		else:
 			n = ObjectRegistry.build({"type": t, "name": t, "content": {}, "params": {"style": {"primary": "#" + accent.to_html(false)} if t in ["sofa", "armchair"] else {}}})
-		n.position = pos
-		n.rotation_degrees.y = rot
+		var p: Vector2 = it["pos"]
+		n.position = Vector3(p.x, _yoff, p.y)
+		n.rotation_degrees.y = float(it["rot"])
+		n.scale = Vector3.ONE * float(it["scale"])
 		add_child(n)
 		furniture_count += 1
 
@@ -305,8 +332,9 @@ func generate_building(plan: Dictionary, apt_id: String, bot_color := Color(0.7,
 	if data.is_empty():
 		data = load_data()
 	_rng.seed = absi(apt_id.hash()) + 1
-	_sky_shader = Shader.new()
-	_sky_shader.code = SKY_SHADER
+	room_plans.clear()
+	_wlights.clear()
+	_hour = _clock_hour()
 	_body = StaticBody3D.new()
 	_body.collision_layer = 1
 	add_child(_body)
@@ -438,7 +466,32 @@ func _building_floor(plan: Dictionary, f: int, apt_id: String, ox: float, accent
 			_light(Vector3(c3.x, ly, c3.z), clampf(maxf(r.size.x, r.size.y) * 1.2, 3.5, 8.0), 1.2)
 		if target:
 			room_count += 1
-			_furnish(kind, r, accent)
+			var dl: Array = []
+			var wl: Array = []
+			for e2 in 4:
+				var h2: bool = e2 < 2
+				var fx: float = [r.position.y, r.end.y, r.position.x, r.end.x][e2]
+				var lo2: float = r.position.x if h2 else r.position.y
+				var hi2: float = r.end.x if h2 else r.end.y
+				for dr in doors:
+					var dx: float = float(dr["x"]) - ox
+					var dz: float = float(dr["z"])
+					var on: bool = absf(dz - fx) < 0.06 if h2 else absf(dx - fx) < 0.06
+					var al: float = dx if h2 else dz
+					if on and al > lo2 - 0.01 and al < hi2 + 0.01:
+						dl.append({"e": e2, "c": al, "w": float(dr["w"])})
+				var fac := ""
+				match e2:
+					0: fac = "front" if absf(fx) < 0.05 else ""
+					1: fac = "back" if absf(fx - float(plan["d"])) < 0.05 else ""
+					2: fac = "left" if absf(fx + ox) < 0.05 else ""
+					_: fac = "right" if absf(fx - (float(plan["w"]) - ox)) < 0.05 else ""
+				for wn in cell["wins"]:
+					if str(wn["facade"]) == fac:
+						var wc: float = float(wn["x"]) - (ox if h2 else 0.0)
+						if wc > lo2 and wc < hi2:
+							wl.append({"e": e2, "c": wc, "w": float(wn["w"])})
+			_furnish(kind, r, accent, dl, wl)
 		for e in 4:
 			_cell_edge(plan, f, cells, i, e, doors, ox)
 	_apt_doors(plan, fd, f, apt_id, ox)
@@ -537,7 +590,7 @@ func _ext_edge(plan: Dictionary, f: int, cell: Dictionary, horiz: bool, fixed: f
 		ops.append([0.0, DOOR_W, 0.0, DOOR_H])
 	_wall_ops(horiz, fixed, lo, hi, ops, mat, float(plan["fh"]))
 	for g in glass:
-		_glass_at(horiz, fixed, g[0], e, g[1], g[2], _yoff + g[3] + g[2] * 0.5)
+		_glass_at(horiz, fixed, g[0], e, g[1], g[2], _yoff + g[3] + g[2] * 0.5, str(cell["kind"]), str(cell["rid"]))
 
 
 ## Mur plein de lo à hi avec ouvertures [centre, largeur, bas, haut] (hauteurs relatives à l'étage).
@@ -568,19 +621,9 @@ func _wall_ops(horiz: bool, fixed: float, lo: float, hi: float, ops: Array, mat:
 			_box(bs, Vector3(pos.x, _yoff + 0.06, pos.z), _base_mat, false)
 
 
-func _glass_at(horiz: bool, fixed: float, mid: float, e: int, w: float, h: float, yc: float) -> void:
+func _glass_at(horiz: bool, fixed: float, mid: float, e: int, w: float, h: float, yc: float, kind := "living", rid := "") -> void:
 	window_count += 1
-	var q := MeshInstance3D.new()
-	var qm := QuadMesh.new()
-	qm.size = Vector2(w, h)
-	q.mesh = qm
-	var m := ShaderMaterial.new()
-	m.shader = _sky_shader
-	m.set_shader_parameter("seed", float(window_count) * 7.3)
-	q.material_override = m
-	q.rotation.y = [0.0, PI, PI * 0.5, -PI * 0.5][e]
-	q.position = Vector3(mid, yc, fixed) if horiz else Vector3(fixed, yc, mid)
-	add_child(q)
+	_dress_at(horiz, fixed, mid, e, w, h, yc, kind, "%s-%s-%d" % [apartment_id, rid, int(mid * 10.0)])
 
 
 ## Escalier en U dans une cage dédiée : volée basse (voie z basse) vers l'ouest, palier intermédiaire,

@@ -517,6 +517,23 @@ static func mind_test(main) -> void:
 	apt.generate("Test")
 	check(apt.room_count >= 4 and apt.furniture_count >= 5 and apt.window_count >= 2, "appartement généré (%s : %d pièces, %d meubles, %d fenêtres)" % [apt.layout_id, apt.room_count, apt.furniture_count, apt.window_count])
 	apt.free()
+	# Placement des meubles : 50 appartements variés, 0 intersection, passages >= 0,8 m, rien devant les portes.
+	var fl_errs := 0
+	var fl_items := 0
+	var fl_rooms := 0
+	var fl_first := ""
+	for k in 50:
+		var fa := ApartmentInterior.new()
+		fa.generate("meuble-%d" % k)
+		for rp in fa.room_plans:
+			fl_rooms += 1
+			fl_items += (rp["items"] as Array).size()
+			var er: Array = FurnitureLayout.check_room(rp)
+			fl_errs += er.size()
+			if not er.is_empty() and fl_first == "":
+				fl_first = "%s %s" % [rp["kind"], er[0]]
+		fa.free()
+	check(fl_errs == 0 and fl_items > 150, "meubles : 50 appartements (%d pièces, %d meubles) sans intersection/blocage %s" % [fl_rooms, fl_items, fl_first])
 	_building_plans(rw)
 	var hb := -1
 	for b in rw.city.buildings:
