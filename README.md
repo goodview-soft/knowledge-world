@@ -62,3 +62,7 @@ Motifs plaqués en coordonnées monde : raccords sans couture. T sur une pièce 
 
 ## Conscience
 Entrée : parler dans la pièce (chat façon Minecraft) · Entrée maintenue : chat complet. Réponses lues à voix haute (TTS système, réglage « tts »).
+
+## Ville & bots (réalité)
+Ville procédurale en motifs générée depuis `data/city/city.json` (grille, rues, trottoirs, modèles de bâtiments : taille, étages, matériau, couleur, fenêtres ; densité, graine). Place centrale dégagée, bâtiments en MultiMesh + shader de fenêtres, une collision par bâtiment (`scripts/reality/city/`).
+Les bots (`data/bots`) marchent sur les trottoirs ; E en visant un bot (< 3 m) ouvre une ligne de saisie (Entrée envoie, Échap ferme). Leur état est sauvegardé dans `World.data.bots`.

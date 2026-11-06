@@ -479,6 +479,10 @@ func _unhandled_input(event: InputEvent) -> void:
 		return
 	if not (event is InputEventKey and event.pressed and not event.echo):
 		return
+	if not in_palace and event.keycode == KEY_E:
+		if mind.state == MindLink.S.REALITY:
+			mind.reality.try_talk() # seule touche « palais » permise : parler aux bots
+		return
 	if not in_palace and event.keycode in [KEY_E, KEY_B, KEY_TAB, KEY_H, KEY_N, KEY_L, KEY_G, KEY_F, KEY_P, KEY_T, KEY_I]:
 		return # palais seulement
 	match event.keycode:

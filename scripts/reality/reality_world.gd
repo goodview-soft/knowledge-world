@@ -8,6 +8,10 @@ const ENV_PROPS := ["background_mode", "background_color", "ambient_light_source
 	"ambient_light_energy", "ssao_enabled", "ssil_enabled", "fog_enabled"]
 
 var sun: DirectionalLight3D
+var city: CityBuilder
+var director: BotDirector
+var talk: BotTalk
+var _save_in := 10.0
 
 const FLOOR_SHADER := """
 shader_type spatial;
@@ -54,6 +58,104 @@ func _init() -> void:
 	sun.shadow_enabled = true
 	sun.directional_shadow_max_distance = 40.0
 	add_child(sun)
+	city = CityBuilder.new()
+	city.name = "City"
+	add_child(city)
+	city.build(CityBuilder.load_config())
+
+
+func _ready() -> void:
+	director = BotDirector.new()
+	add_child(director)
+	director.load_brains()
+	if World.data.has("bots"):
+		director.from_dict(World.data.bots)
+	var pl: AABB = city.plaza
+	pl.position += ORIGIN
+	director.spawn_in(self, pl)
+	var loops: Array = city.sidewalk_loops
+	var near: Array = []
+	for lp in loops:
+		if (lp[0] as Vector3).length() < 90.0:
+			near.append(lp)
+	for bot in director.bots:
+		var lp: Array = (near if not near.is_empty() else loops).pick_random()
+		var pts: Array = []
+		for p in lp:
+			pts.append(ORIGIN + p)
+		bot.global_position = pts[randi() % pts.size()]
+		bot.set_waypoints(pts)
+	talk = BotTalk.new()
+	add_child(talk)
+	talk.closed.connect(func() -> void:
+		var m = get_parent()
+		if m != null and m.get("player") != null:
+			m.player.enabled = true
+			m._capture(true))
+
+
+func _main_player() -> KWPlayer:
+	var m = get_parent()
+	return m.get("player") if m != null else null
+
+
+func _active() -> bool:
+	var m = get_parent()
+	return m != null and m.get("mind") != null and m.mind.state == MindLink.S.REALITY and m.title == null
+
+
+## Bot le plus proche devant le joueur (< 3 m), ou null.
+func aimed_bot(max_dist := 3.0) -> Bot:
+	var pl := _main_player()
+	if pl == null or director == null:
+		return null
+	var fwd := -pl.global_transform.basis.z
+	fwd.y = 0.0
+	var best: Bot = null
+	var bd := max_dist
+	for b in director.bots:
+		if not is_instance_valid(b):
+			continue
+		var to: Vector3 = b.global_position - pl.global_position
+		to.y = 0.0
+		var d := to.length()
+		if d < bd and (d < 1.0 or fwd.normalized().dot(to / d) > 0.5):
+			bd = d
+			best = b
+	return best
+
+
+func try_talk() -> bool:
+	if talk == null or talk.is_open():
+		return false
+	var b := aimed_bot()
+	if b == null:
+		return false
+	var pl := _main_player()
+	pl.enabled = false
+	talk.open(b)
+	return true
+
+
+func _process(_dt: float) -> void:
+	var pl := _main_player()
+	if pl == null or director == null:
+		return
+	director.set_listener(pl.global_position)
+	talk.show_hint(aimed_bot() if _active() else null)
+	_save_in -= _dt
+	if _save_in <= 0.0:
+		_save_in = 10.0
+		save_bots()
+
+
+func save_bots() -> void:
+	if director != null and not director.brains.is_empty():
+		World.data["bots"] = director.to_dict()
+
+
+func _exit_tree() -> void:
+	save_bots()
 
 
 ## Règle l'environnement partagé : ciel doux (réalité) ou valeurs du palais (copie d'origine).

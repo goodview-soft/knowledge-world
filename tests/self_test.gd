@@ -411,6 +411,23 @@ static func mind_test(main) -> void:
 		ev.pressed = true
 		main.get_viewport().push_input(ev)
 	check(main.panel == null and not main.build.active, "mind : touches palais bloquées en réalité")
+	var rw: RealityWorld = main.mind.reality
+	check(rw.city.building_count >= 20 and rw.city.lamp_count > 0 and rw.city.tree_count > 0, "ville : %d bâtiments générés" % rw.city.building_count)
+	check(rw.director.bots.size() >= 1 and rw.city.plaza.size.x > 10.0, "ville : bots présents, place dégagée")
+	var tb: Bot = rw.director.bots[0]
+	pl.teleport(tb.global_position + Vector3(0, 0, 2), 0.0)
+	var e_ev := InputEventKey.new()
+	e_ev.keycode = KEY_E
+	e_ev.pressed = true
+	main.get_viewport().push_input(e_ev)
+	check(rw.talk.is_open() and main.panel == null, "bots : E ouvre la saisie en réalité")
+	rw.talk.submit("Bonjour !")
+	check(rw.talk.last_reply != "", "bots : réponse (repli) reçue")
+	var esc := InputEventKey.new()
+	esc.keycode = KEY_ESCAPE
+	esc.pressed = true
+	main.get_viewport().push_input(esc)
+	check(not rw.talk.is_open() and not tb.busy, "bots : Échap ferme la saisie")
 	var sh := InputEventKey.new()
 	sh.keycode = KEY_SHIFT
 	sh.pressed = true

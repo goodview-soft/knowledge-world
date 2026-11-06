@@ -1,0 +1,17 @@
+{
+	"seed": 42,
+	"grid": {"cols": 7, "rows": 7},
+	"block_size": 40.0,
+	"street_width": 10.0,
+	"sidewalk_width": 2.5,
+	"lots_per_block": 2,
+	"density": 0.85,
+	"trees_per_block": 6,
+	"models": [
+		{"name": "Immeuble brique", "weight": 3, "width": [11, 15], "depth": [11, 15], "floors": [4, 7], "floor_height": 3.2, "material": "brique", "color": "#c98a6e", "windows": "grid"},
+		{"name": "Immeuble enduit", "weight": 3, "width": [12, 16], "depth": [10, 14], "floors": [3, 5], "floor_height": 3.0, "material": "enduit", "color": "#eadfc8", "windows": "tall"},
+		{"name": "Bureaux", "weight": 2, "width": [14, 16], "depth": [14, 16], "floors": [6, 10], "floor_height": 3.4, "material": "beton", "color": "#9fb0bd", "windows": "strip"},
+		{"name": "Maison de pierre", "weight": 2, "width": [8, 11], "depth": [8, 11], "floors": [1, 2], "floor_height": 3.0, "material": "pierre", "color": "#b8b0a0", "windows": "grid"},
+		{"name": "Entrepot", "weight": 1, "width": [15, 16], "depth": [14, 16], "floors": [1, 1], "floor_height": 6.0, "material": "sombre", "color": "#6b6f78", "windows": "none"}
+	]
+}
