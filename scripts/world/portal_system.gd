@@ -237,9 +237,12 @@ func _mapping(e: Entry, ta: Transform3D, to_preview: bool) -> Transform3D:
 
 
 func _physics_process(_delta: float) -> void:
-	if _cooldown > 0.0 or main.panel != null or main._travelling or main.build.active:
+	if _cooldown > 0.0 or main.panel != null or main._travelling or main.build.placing != "" or main.build.grabbing:
 		return
 	var p: KWPlayer = main.player
+	# Intention de déplacement (la vitesse réelle tombe à 0 contre le mur derrière le passage).
+	var iv := Input.get_vector("move_left", "move_right", "move_forward", "move_back") if p.active() else Vector2.ZERO
+	var wish := p.global_transform.basis * Vector3(iv.x, 0, iv.y)
 	for e in entries:
 		var node = main.nodes.get(e.obj_id)
 		if node == null:
@@ -247,7 +250,9 @@ func _physics_process(_delta: float) -> void:
 		var ta: Transform3D = node.global_transform
 		var local := ta.affine_inverse() * p.global_position
 		var vel_local := ta.basis.inverse() * p.velocity
-		if absf(local.x) < e.inner.x / 2.0 - 0.05 and local.z < 0.45 and local.z > -0.4 and local.y < 1.0 and vel_local.z < -0.3:
+		var wish_local := ta.basis.inverse() * wish
+		var pushing := vel_local.z < -0.3 or wish_local.z < -0.3
+		if absf(local.x) < e.inner.x / 2.0 - 0.1 and local.z < 0.6 and local.z > -0.4 and local.y < 1.2 and pushing:
 			_traverse(e, ta)
 			return
 

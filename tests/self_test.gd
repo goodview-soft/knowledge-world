@@ -295,6 +295,21 @@ static func run(main) -> void:
 	await tree.process_frame
 	check(main.current_room == tgt, "traversée d'un portail en marchant")
 	check(main.portals.entries.size() >= 1, "portail de retour vivant")
+	# Collé au passage, vitesse nulle, touche « avancer » enfoncée → on traverse.
+	main.enter_room(W.data.hub)
+	await tree.process_frame
+	main.portals._cooldown = 0.0
+	var pe2 = main.portals.entries[0]
+	var pxf: Transform3D = main.nodes[pe2.obj_id].global_transform
+	var fwd2: Vector3 = pxf.basis.z
+	main.player.teleport(pxf.origin + fwd2 * 0.35 + Vector3(0, 0.05, 0), atan2(fwd2.x, fwd2.z))
+	main.player.force_active = true
+	Input.action_press("move_forward")
+	for _i in 4:
+		await tree.physics_frame
+	Input.action_release("move_forward")
+	main.player.force_active = false
+	check(main.current_room == pe2.target, "traversée même collé au mur (vitesse nulle)")
 	# Redimensionnement de la salle : le joueur reste dedans ; chute → retour.
 	main.enter_room(W.data.hub)
 	main.player.global_position = Vector3(9.0, 0.05, 9.0)
