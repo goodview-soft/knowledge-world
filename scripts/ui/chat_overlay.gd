@@ -52,7 +52,7 @@ func _ready() -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
-	if is_open or main.panel != null or main.title != null or not main.in_palace:
+	if is_open or main.panel != null or main.title != null:
 		return
 	if event is InputEventKey and event.pressed and not event.echo and event.keycode in [KEY_ENTER, KEY_KP_ENTER]:
 		_holding = true
@@ -70,7 +70,7 @@ func _process(delta: float) -> void:
 	if _holding:
 		_hold_t += delta
 		var down := Input.is_key_pressed(KEY_ENTER) or Input.is_key_pressed(KEY_KP_ENTER)
-		if _hold_t >= HOLD_TIME and down:
+		if _hold_t >= HOLD_TIME and down and main.in_palace:
 			_holding = false
 			main.open_panel(ChatPanel.new(main.room_ai()))
 		elif not down:
@@ -104,11 +104,37 @@ func _submit(text: String) -> void:
 	if q == "":
 		return
 	add_line("[Vous] " + q, Color(0.9, 0.9, 0.92))
+	if not main.in_palace:
+		_say_to_nearest_bot(q)
+		return
 	var desk: String = main.room_ai()
 	_live_desk = desk
 	_live_line = add_line("[%s] …" % _ai_name(desk), Color(0.62, 0.82, 1.0))
 	KWVoice.stop()
 	Assistant.ask(desk, main.current_room, q, "room")
+
+
+## Réalité : ce qu'on dit est entendu par le bot le plus proche (≤ 6 m).
+func _say_to_nearest_bot(q: String) -> void:
+	var best = null
+	var best_d := 6.0
+	var rw = main.mind.reality if main.mind != null else null
+	if rw != null and rw.director != null:
+		for b in rw.director.bots:
+			if is_instance_valid(b) and b.visible:
+				var d: float = b.global_position.distance_to(main.player.global_position)
+				if d < best_d:
+					best_d = d
+					best = b
+	if best == null:
+		add_line("(Personne ne vous entend.)", Color(0.7, 0.7, 0.75))
+		return
+	var who: String = best.brain.full_name()
+	var line := add_line("[%s] …" % who, Color(1.0, 0.85, 0.6))
+	best.talk_to_player(q, func(r: String):
+		if is_instance_valid(line):
+			line.text = "[%s] %s" % [who, r]
+			line.set_meta("t", Time.get_ticks_msec() / 1000.0))
 
 
 func _ai_name(desk: String) -> String:
