@@ -295,6 +295,21 @@ static func run(main) -> void:
 	await tree.process_frame
 	check(main.current_room == tgt, "traversée d'un portail en marchant")
 	check(main.portals.entries.size() >= 1, "portail de retour vivant")
+	# Redimensionnement de la salle : le joueur reste dedans ; chute → retour.
+	main.enter_room(W.data.hub)
+	main.player.global_position = Vector3(9.0, 0.05, 9.0)
+	var hs: Array = W.data.rooms[W.data.hub].size.duplicate()
+	W.data.rooms[W.data.hub].size = [8.0, hs[1], 8.0]
+	W.changed.emit("room", W.data.hub, "updated")
+	await tree.process_frame
+	var pp: Vector3 = main.player.global_position
+	check(absf(pp.x) <= 3.6 and absf(pp.z) <= 3.6, "joueur recalé après réduction du hub")
+	main.player.global_position = Vector3(0, -10, 0)
+	await tree.physics_frame
+	await tree.physics_frame
+	check(main.player.global_position.y > -1.0, "chute sous la carte → retour dans la salle")
+	W.data.rooms[W.data.hub].size = hs
+	W.changed.emit("room", W.data.hub, "updated")
 	print("SELFTEST ", "OK" if fails == 0 else "ÉCHECS : %d" % fails)
 	tree.quit(0 if fails == 0 else 1)
 

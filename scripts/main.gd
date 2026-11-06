@@ -166,6 +166,24 @@ func _build_room_geometry() -> void:
 	var st := RoomBuilder.style_of(room)
 	env.ambient_light_color = Color(0.78, 0.75, 0.7).lerp(RoomBuilder.light_color(st), 0.6)
 	env.ambient_light_energy = 0.45 * clampf(RoomBuilder.light_energy(st) / 0.8, 0.35, 1.8)
+	keep_player_inside()
+
+
+## Garde le joueur dans la salle (après redimensionnement, murs reconstruits…).
+func keep_player_inside() -> void:
+	if player == null or current_room == "":
+		return
+	var s: Array = World.data.rooms[current_room].size
+	var m := 0.5
+	var p := player.global_position
+	var hx := float(s[0]) / 2.0 - m
+	var hz := float(s[2]) / 2.0 - m
+	var q := Vector3(clampf(p.x, -hx, hx), maxf(p.y, 0.05), clampf(p.z, -hz, hz))
+	if q.y > float(s[1]) - 1.0:
+		q.y = 0.05
+	if not q.is_equal_approx(p):
+		player.global_position = q
+		player.velocity = Vector3.ZERO
 
 
 ## Applique les paramètres globaux (joueur, taille de l'UI).
@@ -422,6 +440,17 @@ func _unhandled_input(event: InputEvent) -> void:
 			if event.ctrl_pressed:
 				World.save_world()
 				hud.toast("Monde sauvegardé.")
+
+
+func _physics_process(_delta: float) -> void:
+	# Filet de sécurité : chute sous le sol ou sortie de la salle → retour à l'intérieur.
+	if player == null or current_room == "" or _travelling:
+		return
+	var s: Array = World.data.rooms[current_room].size
+	var p := player.global_position
+	if p.y < -2.0 or absf(p.x) > float(s[0]) / 2.0 + 1.0 or absf(p.z) > float(s[2]) / 2.0 + 1.0:
+		player.teleport(Vector3(0, 0.05, float(s[2]) / 2.0 - 2.0), 0.0)
+		hud.toast("Vous avez été ramené dans la salle.")
 
 
 func _process(_delta: float) -> void:

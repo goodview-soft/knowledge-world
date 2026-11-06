@@ -71,8 +71,8 @@ func _build() -> void:
 	var c3 := card(_content, "Dimensions")
 	var s: Array = r["size"]
 	_pending_size = [float(s[0]), float(s[1]), float(s[2])]
-	slider(c3, "Largeur", _pending_size[0], 4.0, 40.0, 0.5, func(v: float): _queue_size(0, v), "%.1f m")
-	slider(c3, "Profondeur", _pending_size[2], 4.0, 40.0, 0.5, func(v: float): _queue_size(2, v), "%.1f m")
+	slider(c3, "Largeur", _pending_size[0], _min_side(), 40.0, 0.5, func(v: float): _queue_size(0, v), "%.1f m")
+	slider(c3, "Profondeur", _pending_size[2], _min_side(), 40.0, 0.5, func(v: float): _queue_size(2, v), "%.1f m")
 	slider(c3, "Hauteur", _pending_size[1], 2.6, 12.0, 0.1, func(v: float): _queue_size(1, v), "%.1f m")
 	dim(c3, "Les objets restent dans la salle ; ceux fixés aux murs (portes, tableaux) suivent leur mur.")
 
@@ -94,3 +94,10 @@ func on_close() -> void:
 	if not _size_timer.is_stopped():
 		_size_timer.stop()
 		_apply_size()
+
+
+## Taille minimale : le hub doit garder la place pour ses portails.
+func _min_side() -> float:
+	if room_id == World.data.hub:
+		return maxf(12.0, 3.0 * World.data.portals.size() + 3.0)
+	return 4.0
