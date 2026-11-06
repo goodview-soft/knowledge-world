@@ -19,6 +19,15 @@ static func run(main) -> void:
 	var W = tree.root.get_node("World")
 	print("SELFTEST start, save=", W.save_path)
 	check(W.data.portals.size() >= 3, "3 portails de démonstration")
+	# La souris au centre de l'écran doit atteindre le joueur (aucune UI ne doit la capter).
+	main.player.force_active = true
+	var yaw0: float = main.player.rotation.y
+	var mm := InputEventMouseMotion.new()
+	mm.position = main.get_viewport().get_visible_rect().size / 2
+	mm.relative = Vector2(200, 0)
+	main.get_viewport().push_input(mm)
+	check(not is_equal_approx(main.player.rotation.y, yaw0), "la souris fait tourner la caméra (UI transparente)")
+	main.player.force_active = false
 	check(main.nodes.size() > 5, "hub peuplé (%d objets)" % main.nodes.size())
 	# Navigation : entrer dans un portail puis la salle secondaire.
 	var pid = W.data.portals.keys()[0]

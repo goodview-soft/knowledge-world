@@ -18,6 +18,7 @@ func _init() -> void:
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	crosshair = ColorRect.new()
 	crosshair.color = Color(1, 1, 1, 0.8)
+	crosshair.mouse_filter = Control.MOUSE_FILTER_IGNORE # sinon il capte la souris (centrée quand capturée)
 	crosshair.set_anchors_preset(Control.PRESET_CENTER)
 	crosshair.offset_left = -3
 	crosshair.offset_top = -3

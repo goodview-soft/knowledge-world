@@ -6,6 +6,7 @@ const SPEED := 3.0
 const SPRINT := 5.5
 var sensitivity := 0.0022
 var enabled := true
+var force_active := false # tests headless
 var head: Node3D
 var cam: Camera3D
 var ray: RayCast3D
@@ -35,7 +36,7 @@ func _init() -> void:
 
 
 func active() -> bool:
-	return enabled and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED
+	return enabled and (force_active or Input.mouse_mode == Input.MOUSE_MODE_CAPTURED)
 
 
 func set_reach(r: float) -> void:
