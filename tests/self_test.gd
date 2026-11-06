@@ -341,12 +341,24 @@ static func run(main) -> void:
 	main.start_world(home)
 	await tree.process_frame
 	check(main.title == null and main.current_room == W.data.hub, "écran d'accueil → monde")
+	# Chat dans la pièce (façon Minecraft).
+	main.enter_room(W.data.hub)
+	main.chat.open_input()
+	check(main.chat.is_open and not main.player.enabled, "chat en jeu ouvert, joueur figé")
+	var n0: int = main.chat.log_box.get_child_count()
+	main.chat._submit("fais une synthèse")
+	await tree.process_frame
+	await tree.process_frame
+	await tree.process_frame
+	check(main.chat.log_box.get_child_count() == n0 + 2 and main.player.enabled, "message + réponse de la conscience affichés")
+	check(not "…" in main.chat.log_box.get_child(main.chat.log_box.get_child_count() - 1).text, "réponse complète reçue")
 	print("SELFTEST ", "OK" if fails == 0 else "ÉCHECS : %d" % fails)
 	tree.quit(0 if fails == 0 else 1)
 
 
 static func shot(main, path: String) -> void:
 	var tree: SceneTree = main.get_tree()
+	print("TTS voix disponibles : ", DisplayServer.tts_get_voices().size(), " fr : ", DisplayServer.tts_get_voices_for_language("fr").size())
 	if "--kw-shot-title" in OS.get_cmdline_user_args():
 		main.show_title()
 	# Option : --kw-shot-ui=map|room|pause|settings|build (pour juger l'interface).

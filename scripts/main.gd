@@ -14,6 +14,7 @@ var dim: ColorRect
 var relation_lines: MeshInstance3D
 var portals: PortalSystem
 var title: TitleScreen = null
+var chat: ChatOverlay
 var nodes := {} # obj_id -> KWObject
 var current_room := ""
 var panel: KWPanel = null
@@ -35,6 +36,8 @@ func _ready() -> void:
 	layer.add_child(ui_root)
 	hud = KWHud.new()
 	ui_root.add_child(hud)
+	chat = ChatOverlay.new()
+	hud.add_child(chat)
 	dim = ColorRect.new()
 	dim.color = Color(0.02, 0.03, 0.05, 0.0)
 	dim.set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -460,7 +463,6 @@ func _unhandled_input(event: InputEvent) -> void:
 			var id := aimed_object_id()
 			if id != "":
 				interact(id)
-		KEY_ENTER, KEY_KP_ENTER: open_panel(ChatPanel.new(room_ai()))
 		KEY_B: build.toggle()
 		KEY_TAB: open_panel(MapPanel.new())
 		KEY_H: go_to_room(World.data.hub, current_room)
