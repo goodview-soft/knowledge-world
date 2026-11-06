@@ -192,6 +192,84 @@ static func run(main) -> void:
 	check(main.hud.build_box.visible and main.hud.build_slots[8].theme_type_variation == "SlotActive", "barre d'outils : slot actif en surbrillance")
 	main.build.toggle()
 	main.enter_room(entrance)
+	# Catalogue étendu : chaque type se construit, se pose et s'affiche.
+	var bad := []
+	for t in ObjectRegistry.DEFS:
+		var vis: Node3D = ObjectRegistry.build({"id": "t_" + t, "type": t, "name": "x", "content": ObjectRegistry.default_content(t), "params": {}})
+		if vis.get_child_count() == 0:
+			bad.append(t)
+		vis.free()
+	check(bad.is_empty(), "tous les types se construisent (%d) %s" % [ObjectRegistry.DEFS.size(), bad])
+	var made := []
+	for t in ObjectRegistry.inventory_types():
+		made.append(W.create_object(t, entrance, Vector3(randf_range(-2, 2), 0, randf_range(-2, 2))))
+	await tree.process_frame
+	check(made.all(func(i): return main.nodes.has(i)), "nouveaux objets posés et affichés (%d)" % made.size())
+	for i in made:
+		W.delete_object(i)
+	check(ObjectRegistry.colliders("rug").is_empty() and ObjectRegistry.colliders("arch").size() == 3 and not ObjectRegistry.is_solid("frame"), "collisions : tapis/cadre non bloquants, arche passante")
+	# Accrochage des murs bout à bout.
+	var w1: String = W.create_object("wall", entrance, Vector3(0, 0, 0))
+	await tree.process_frame
+	var es: Dictionary = main.build._edge_snap("wall", Vector3.ONE, Vector3(2.15, 0, 0.1), "")
+	check(not es.is_empty() and es.pos.distance_to(Vector3(2, 0, 0)) < 0.01 and is_equal_approx(es.rot.y, 0.0), "mur accroché au bout d'un autre")
+	W.delete_object(w1)
+	# Inventaire + barre rapide persistée.
+	main.build.open_inventory()
+	await tree.process_frame
+	check(main.panel is InventoryPanel and main.build.active, "inventaire ouvert (mode construction)")
+	var inv: InventoryPanel = main.panel
+	inv.cat = "arch"
+	inv._filter()
+	check(inv.tiles["wall"].visible and not inv.tiles["sofa"].visible, "inventaire : filtre par catégorie")
+	inv.cat = ""
+	inv.search.text = "canap"
+	inv._filter()
+	check(inv.tiles["sofa"].visible and not inv.tiles["wall"].visible, "inventaire : recherche")
+	inv.assign(9, "sofa")
+	KWSettings.data = {}
+	KWSettings.load_settings()
+	check(KWHotbar.type_at(9) == "sofa" and KWHotbar.type_at(8) == "lamp", "slot assigné persisté (settings_test.json)")
+	check((main.hud.build_slots[9].get_child(0).get_child(1) as Label).text == "Canapé", "barre rapide du HUD mise à jour")
+	inv.choose("sofa")
+	await tree.process_frame
+	check(main.panel == null and main.build.placing == "sofa", "inventaire fermé, canapé en pose")
+	check(main.build._is_blocked("sofa", main.player.global_position, Vector3.ZERO, Vector3.ONE) and not main.build._is_blocked("rug", main.player.global_position, Vector3.ZERO, Vector3.ONE), "aperçu : collision détectée (joueur), tapis libre")
+	main.build.toggle()
+	KWHotbar.assign(9, "door")
+	# Saut / accroupi.
+	var pl: KWPlayer = main.player
+	for i in 40:
+		await tree.physics_frame
+	check(pl.is_on_floor(), "joueur au sol")
+	var y0: float = pl.global_position.y
+	pl.request_jump()
+	for i in 3:
+		await tree.physics_frame
+	check(pl.velocity.y > 0.0 and pl.global_position.y > y0, "saut")
+	for i in 4:
+		await tree.physics_frame
+	var vy: float = pl.velocity.y
+	pl.request_jump()
+	await tree.physics_frame
+	check(pl.velocity.y < vy, "pas de double saut")
+	for i in 60:
+		await tree.physics_frame
+	pl.crouch_toggled = true
+	for i in 20:
+		await tree.physics_frame
+	check(pl.is_crouched and pl.capsule.height < 1.2 and pl.head.position.y < 1.1, "accroupi (capsule + caméra abaissées)")
+	var lid: String = W.create_object("platform", entrance, pl.global_position + Vector3(0, 1.3, 0))
+	for i in 3:
+		await tree.physics_frame
+	pl.crouch_toggled = false
+	for i in 20:
+		await tree.physics_frame
+	check(pl.is_crouched and pl.capsule.height < 1.2, "impossible de se relever sous un obstacle")
+	W.delete_object(lid)
+	for i in 25:
+		await tree.physics_frame
+	check(not pl.is_crouched and pl.capsule.height > 1.7, "relevé une fois l'obstacle retiré")
 	# Suppression de salle + persistance.
 	check(W.delete_room(rid), "suppression de salle")
 	var counts := [W.data.rooms.size(), W.data.objects.size(), W.data.relations.size(), W.data.documents.size()]
@@ -202,6 +280,21 @@ static func run(main) -> void:
 	main.go_to_room(W.data.hub)
 	await tree.create_timer(1.0).timeout
 	check(main.current_room == W.data.hub, "téléportation au hub")
+	# Orbe, poster, portails vivants.
+	main.enter_room(W.data.hub)
+	await tree.process_frame
+	check(W.objects_in_room(W.data.hub).any(func(o): return o.type == "orb"), "sphère de conscience au centre du hub")
+	check(main.room_ai() != "" and W.data.objects[main.room_ai()].type == "orb", "Entrée → IA de la pièce")
+	var pst: String = W.create_object("poster", W.data.hub, Vector3(0, 1, -9.9))
+	await tree.process_frame
+	check(main.nodes.has(pst) and main.nodes[pst].body.collision_layer == 8, "poster créé, non bloquant")
+	check(main.portals.entries.size() >= 3, "portails vivants dans le hub (%d)" % main.portals.entries.size())
+	var pe = main.portals.entries[0]
+	var tgt: String = pe.target
+	main.portals._traverse(pe, main.nodes[pe.obj_id].global_transform)
+	await tree.process_frame
+	check(main.current_room == tgt, "traversée d'un portail en marchant")
+	check(main.portals.entries.size() >= 1, "portail de retour vivant")
 	print("SELFTEST ", "OK" if fails == 0 else "ÉCHECS : %d" % fails)
 	tree.quit(0 if fails == 0 else 1)
 

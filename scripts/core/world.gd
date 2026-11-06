@@ -69,9 +69,22 @@ func load_world() -> bool:
 		if parsed is Dictionary and parsed.has("rooms") and parsed.get("hub", "") != "":
 			data = _empty()
 			data.merge(parsed, true)
+			_migrate()
 			return true
 		push_warning("Fichier de sauvegarde illisible : %s" % p)
 	return false
+
+## Migrations douces des anciennes sauvegardes (rien n'est perdu).
+func _migrate() -> void:
+	# Le bureau central du hub devient la sphère de conscience (la conversation est conservée).
+	if not data.get("orb_migrated", false):
+		data.orb_migrated = true
+		for o in objects_in_room(data.hub):
+			if o.type == "desk" and vec(o.pos).length() < 2.5:
+				o.type = "orb"
+				o.name = "Conscience"
+				_dirty = true
+				break
 
 # ------------------------------------------------------------------ utilitaires
 
@@ -507,7 +520,8 @@ func seed_world() -> void:
 	var info: String = data.portals[p_info].entrance
 	var sub := create_room("Godot & 3D", p_info, info, [9.0, 4.0, 11.0])
 
-	create_object("desk", hub, Vector3(0, 0, 1.5))
+	data.orb_migrated = true
+	create_object("orb", hub, Vector3(0, 0, 1.5), Vector3.ZERO, Vector3.ONE, "Conscience")
 	create_object("whiteboard", hub, Vector3(-9.97, 0.9, -3.0), Vector3(0, 90, 0), Vector3.ONE, "Idées en vrac",
 		{"strokes": [{"c": "#3b6ea5", "w": 6, "p": [120, 140, 300, 120, 480, 160, 640, 130]}], "texts": [{"x": 120, "y": 100, "t": "Mes grandes questions", "c": "#222222"}]})
 	create_object("library", hub, Vector3(-9.78, 0, 4.0), Vector3(0, 90, 0))

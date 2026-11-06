@@ -27,16 +27,21 @@ func refresh() -> void:
 	visual.scale = scl
 	add_child(visual)
 	var s: Vector3 = ObjectRegistry.get_def(o.type).size * scl
+	# Corps solides (layer 2) ; objets non bloquants ou passages : layer 8 (visables, traversables).
 	body = StaticBody3D.new()
-	body.collision_layer = 2
 	body.collision_mask = 0
 	body.set_meta("kw_id", obj_id)
-	var cs := CollisionShape3D.new()
-	var bs := BoxShape3D.new()
-	bs.size = s.max(Vector3(0.05, 0.05, 0.05))
-	cs.shape = bs
-	cs.position = Vector3(0, s.y / 2.0, 0)
-	body.add_child(cs)
+	var parts: Array = [] if o.type in ["door", "portal"] else ObjectRegistry.colliders(o.type, scl)
+	body.collision_layer = 2 if not parts.is_empty() else 8
+	if parts.is_empty():
+		parts = [{"size": s, "center": Vector3(0, s.y / 2.0, 0)}]
+	for part in parts:
+		var cs := CollisionShape3D.new()
+		var bs := BoxShape3D.new()
+		bs.size = (part.size as Vector3).max(Vector3(0.05, 0.05, 0.05))
+		cs.shape = bs
+		cs.position = part.center
+		body.add_child(cs)
 	add_child(body)
 
 

@@ -9,9 +9,16 @@ Test d'intégration (sauvegarde séparée, ne touche pas vos données) :
 Sauvegarde réelle : `user://knowledge_world.json` (+ `.bak`), auto-sauvegarde ~1 s après chaque modification, Ctrl+S.
 
 ## Contrôles
-ZQSD/flèches se déplacer · souris regarder · Maj courir · **E** interagir · **Échap** fermer le panneau ouvert, sinon menu (reprendre, carte, salle, paramètres, quitter) · clic reprendre la main
+ZQSD/flèches se déplacer · souris regarder · Maj courir · **Espace** sauter · **Ctrl gauche** (maintenu seul) ou **C** (bascule) s'accroupir · **E** interagir · **Échap** fermer le panneau ouvert, sinon menu (reprendre, carte, salle, paramètres, quitter) · clic reprendre la main
 **Tab** carte/recherche/favoris/récents/création · **H** hub · **N** note rapide · **L** bibliothèque · **G** graphe · **F** relations (objet visé ou salle) · **P** personnaliser la salle · **T** style de l'objet visé · **F1** feuille de raccourcis
-**B** construction : 1-0 choisir l'objet, clic poser · clic sélectionner · G déplacer · R/molette pivoter · PgUp/PgDn taille · **T** style de la sélection · Ctrl+D dupliquer · Suppr supprimer · X grille · clic droit annuler (barre d'outils visuelle en bas d'écran)
+**B** construction : **I** ou **Tab** inventaire · 1-0 barre rapide · clic poser (fantôme vert = libre, rouge = occupé ; Maj+clic force) · clic sélectionner · G déplacer · R/molette pivoter · PgUp/PgDn taille (murs : largeur ; Maj = largeur seule / uniforme pour les murs) · **T** style de la sélection · Ctrl+D dupliquer · Suppr supprimer · X grille (+ accrochage des murs bout à bout) · clic droit annuler
+
+## Inventaire de construction
+- **I / Tab** en mode construction : vignettes par catégories (Connaissance, Mobilier, Architecture, Décoration, Navigation), recherche, survol = description et dimensions.
+- Clic = l'objet rejoint la barre rapide (slot cible) et passe en pose · glisser une vignette sur un slot, clic droit « assigner au slot », ou touche 1-0 au survol · clic droit sur un slot = le vider.
+- Barre rapide persistée dans `user://settings.json` (`hotbar`). Balancement de tête : clé `head_bob`.
+- Objets : canapé, fauteuil, chaise, tables, étagère, plante, tapis, lampes, pouf, banc, coussins ; mur, demi-mur, mur vitré, colonne, estrade (montée en marchant), arche, rambarde, panneau lumineux (plafond) ; cadre, horloge, vase, livres, globe, sculpture.
+- Code : `ObjectRegistry.DEFS` (cat, desc, mount, solid, parts, edge_snap, width_resize), visuels `scripts/build/object_builders.gd`, `scripts/inventory/` (`KWHotbar`, `KWItemIcon`), `scripts/ui/inventory_panel.gd`.
 
 ## Fonctionnalités V1
 - Hub navigable, 3 portails, salle secondaire (Informatique → Godot & 3D), portes générées automatiquement.

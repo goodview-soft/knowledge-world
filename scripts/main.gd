@@ -12,6 +12,7 @@ var room_geo: Node3D
 var env: Environment
 var dim: ColorRect
 var relation_lines: MeshInstance3D
+var portals: PortalSystem
 var nodes := {} # obj_id -> KWObject
 var current_room := ""
 var panel: KWPanel = null
@@ -47,6 +48,9 @@ func _ready() -> void:
 	build = BuildMode.new()
 	build.main = self
 	add_child(build)
+	portals = PortalSystem.new()
+	portals.main = self
+	add_child(portals)
 	relation_lines = MeshInstance3D.new()
 	add_child(relation_lines)
 	World.changed.connect(_on_world_changed)
@@ -148,6 +152,7 @@ func enter_room(room_id: String, from_room := "", focus_obj := "") -> void:
 	var pid: String = room.portal_id
 	hud.show_room_title(room.name, ("Portail · " + World.data.portals[pid].name) if World.data.portals.has(pid) else "Espace central")
 	_draw_relations()
+	portals.refresh()
 
 
 ## (Re)construit murs/sol/plafond/lumières de la salle courante sans toucher aux objets.
@@ -192,6 +197,8 @@ func _on_world_changed(kind: String, id: String, action: String) -> void:
 					nodes[id].refresh()
 			else:
 				_spawn(id)
+			if o == null or o.type in ["door", "portal"] or o.room_id != current_room:
+				portals.request_refresh()
 		"document":
 			_refresh_types(["library"])
 		"room":
@@ -201,8 +208,26 @@ func _on_world_changed(kind: String, id: String, action: String) -> void:
 				if id == current_room and action == "updated":
 					_build_room_geometry()
 				_refresh_types(["door", "portal"])
+				portals.request_refresh()
 	if kind in ["relation", "object"]:
 		_draw_relations()
+
+
+## L'IA de la pièce : l'orbe de la salle s'il y en a une, sinon l'assistant global.
+func room_ai() -> String:
+	for o in World.objects_in_room(current_room):
+		if o.type == "orb":
+			return o.id
+	return assistant_desk()
+
+
+## Bureau « virtuel » de l'assistant global (Entrée) : un objet sans salle, jamais affiché.
+func assistant_desk() -> String:
+	var id: String = World.data.get("assistant_desk", "")
+	if not World.data.objects.has(id):
+		id = World.create_object("desk", "", Vector3.ZERO, Vector3.ZERO, Vector3.ONE, "Assistant")
+		World.data["assistant_desk"] = id
+	return id
 
 
 func _refresh_types(types: Array) -> void:
@@ -245,6 +270,7 @@ func interact(id: String) -> void:
 		"whiteboard": open_panel(WhiteboardPanel.new(id))
 		"kanban": open_panel(KanbanPanel.new(id))
 		"chat": open_panel(ChatPanel.new(id))
+		"poster": open_panel(PosterPanel.new(id))
 		"library": open_panel(LibraryPanel.new(id))
 		"travel":
 			var t: String = o.params.get("target_room", "")
@@ -295,7 +321,15 @@ func open_relations(kind: String, id: String) -> void:
 
 func import_files(paths: PackedStringArray) -> void:
 	var n := 0
+	var docs := PackedStringArray()
 	for p in paths:
+		if p.get_extension().to_lower() in ["png", "jpg", "jpeg", "webp"]:
+			poster_from_file(p)
+		else:
+			docs.append(p)
+	if docs.is_empty():
+		return
+	for p in docs:
 		if World.import_document(p, current_room) != "":
 			n += 1
 	hud.toast("%d document(s) importé(s) dans « %s »." % [n, World.data.rooms[current_room].name] if n > 0 else "Format non pris en charge (texte ou PDF).")
@@ -303,7 +337,8 @@ func import_files(paths: PackedStringArray) -> void:
 		panel.refresh()
 
 
-func quick_note() -> void:
+## Pose devant soi : sur le mur visé, sinon face au joueur.
+func _front_placement(size: Vector3) -> Array:
 	var f := -player.global_transform.basis.z
 	f.y = 0
 	var pos := player.global_position + f.normalized() * 1.2 + Vector3(0, 1.1, 0)
@@ -312,10 +347,24 @@ func quick_note() -> void:
 	var rot := Vector3(0, rad_to_deg(atan2(-f.x, -f.z)), 0)
 	if ray.is_colliding() and absf(ray.get_collision_normal().y) < 0.3:
 		var n := ray.get_collision_normal()
-		pos = ray.get_collision_point() + n * 0.011 - Vector3(0, 0.21, 0)
+		pos = ray.get_collision_point() + n * (size.z / 2.0 + 0.001) - Vector3(0, size.y / 2.0, 0)
 		rot = Vector3(0, rad_to_deg(atan2(n.x, n.z)), 0)
-	var id := World.create_object("note", current_room, pos, rot, Vector3.ONE, "Note rapide")
+	return [pos, rot]
+
+
+func quick_note() -> void:
+	var pr := _front_placement(ObjectRegistry.get_def("note").size)
+	var id := World.create_object("note", current_room, pr[0], pr[1], Vector3.ONE, "Note rapide")
 	open_panel(NotePanel.new(id))
+
+
+## Glisser-déposer une image : poster accroché devant soi.
+func poster_from_file(path: String) -> void:
+	var pr := _front_placement(ObjectRegistry.get_def("poster").size)
+	var id := World.create_object("poster", current_room, pr[0], pr[1], Vector3.ONE, path.get_file().get_basename())
+	var pp := PosterPanel.new(id)
+	open_panel(pp)
+	pp.set_image(path)
 
 
 func _capture(on: bool) -> void:
@@ -351,6 +400,7 @@ func _unhandled_input(event: InputEvent) -> void:
 			var id := aimed_object_id()
 			if id != "":
 				interact(id)
+		KEY_ENTER, KEY_KP_ENTER: open_panel(ChatPanel.new(room_ai()))
 		KEY_B: build.toggle()
 		KEY_TAB: open_panel(MapPanel.new())
 		KEY_H: go_to_room(World.data.hub, current_room)

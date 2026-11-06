@@ -4,10 +4,10 @@ extends Control
 ## feuille de raccourcis (F1), barre d'outils du mode construction.
 
 const HELP_SECTIONS := [
-	["Déplacement", [["ZQSD", "Se déplacer"], ["Souris", "Regarder"], ["Maj", "Courir"], ["E", "Interagir"], ["Clic", "Reprendre la main"]]],
+	["Déplacement", [["ZQSD", "Se déplacer"], ["Souris", "Regarder"], ["Maj", "Courir"], ["Espace", "Sauter"], ["Ctrl · C", "S'accroupir (maintenir · bascule)"], ["E", "Interagir"], ["Entrée", "Parler à l'IA de la pièce"], ["Clic", "Reprendre la main"]]],
 	["Navigation", [["Tab", "Carte & recherche"], ["H", "Retour au hub"], ["L", "Bibliothèque"], ["F", "Relations"], ["G", "Graphe des connaissances"], ["Échap", "Fermer / menu"], ["Ctrl+S", "Sauvegarder"]]],
 	["Création", [["N", "Note rapide"], ["P", "Personnaliser la salle"], ["B", "Mode construction"], ["F1", "Cette aide"]]],
-	["Construction", [["1 – 0", "Choisir un objet"], ["Clic", "Poser / sélectionner"], ["G", "Déplacer"], ["R · Molette", "Pivoter"], ["PgUp/PgDn", "Taille"], ["T", "Style de l'objet"], ["Ctrl+D", "Dupliquer"], ["Suppr", "Supprimer"], ["X", "Grille"], ["Clic droit", "Annuler"]]],
+	["Construction", [["I · Tab", "Inventaire"], ["1 – 0", "Barre rapide"], ["Clic", "Poser / sélectionner"], ["G", "Déplacer"], ["R · Molette", "Pivoter"], ["PgUp/PgDn", "Taille (murs : largeur)"], ["Maj+PgUp/Dn", "Largeur seule"], ["T", "Style de l'objet"], ["Ctrl+D", "Dupliquer"], ["Suppr", "Supprimer"], ["X", "Grille"], ["Clic droit", "Annuler"]]],
 ]
 
 var hint: Label
@@ -169,7 +169,7 @@ func _build_toolbar() -> void:
 	slots.add_theme_constant_override("separation", 6)
 	slots.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	build_box.add_child(slots)
-	for i in ObjectRegistry.PALETTE.size():
+	for i in KWHotbar.SIZE:
 		var pc := PanelContainer.new()
 		pc.theme_type_variation = "Slot"
 		pc.custom_minimum_size = Vector2(98, 0)
@@ -177,26 +177,36 @@ func _build_toolbar() -> void:
 		slots.add_child(pc)
 		var v := VBoxContainer.new()
 		v.add_theme_constant_override("separation", 2)
+		v.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		pc.add_child(v)
+		var top_row := HBoxContainer.new()
+		top_row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		v.add_child(top_row)
 		var n := Label.new()
-		n.text = str((i + 1) % 10)
+		n.text = KWHotbar.key_label(i)
 		n.add_theme_font_size_override("font_size", 12)
 		n.add_theme_color_override("font_color", KWTheme.TEXT_FAINT)
-		v.add_child(n)
+		n.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+		top_row.add_child(n)
+		var ic := KWItemIcon.new("", Vector2(40, 40))
+		ic.size_flags_horizontal = Control.SIZE_EXPAND | Control.SIZE_SHRINK_CENTER
+		top_row.add_child(ic)
 		var name_l := Label.new()
-		name_l.text = ObjectRegistry.get_def(ObjectRegistry.PALETTE[i]).label
-		name_l.add_theme_font_size_override("font_size", 14)
+		name_l.add_theme_font_size_override("font_size", 13)
+		name_l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		name_l.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 		name_l.custom_minimum_size.x = 78
+		name_l.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		v.add_child(name_l)
 		build_slots.append(pc)
+	refresh_hotbar()
 	var keys := HBoxContainer.new()
 	keys.alignment = BoxContainer.ALIGNMENT_CENTER
 	keys.add_theme_constant_override("separation", 4)
 	keys.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	keys.modulate.a = 0.8
 	build_box.add_child(keys)
-	_keys(keys, [["Clic", "Poser / choisir"], ["G", "Déplacer"], ["R", "Pivoter"], ["PgUp/Dn", "Taille"], ["T", "Style"], ["Ctrl+D", "Dupliquer"], ["Suppr", "Supprimer"], ["X", "Grille"], ["B", "Quitter"]])
+	_keys(keys, [["I", "Inventaire"], ["Clic", "Poser / choisir"], ["G", "Déplacer"], ["R", "Pivoter"], ["PgUp/Dn", "Taille"], ["T", "Style"], ["Ctrl+D", "Dupliquer"], ["Suppr", "Supprimer"], ["X", "Grille"], ["B", "Quitter"]])
 	build_label = build_status # compatibilité : set_build() écrit ici
 
 
@@ -303,19 +313,30 @@ func set_build(active: bool, text: String) -> void:
 	build_status.text = text
 
 
-## Barre d'outils : slot actif, état de la grille, sélection.
-func set_build_state(active: bool, placing: String, snap: bool, selection: String, grabbing: bool) -> void:
+## Met à jour vignettes et noms de la barre rapide (KWHotbar).
+func refresh_hotbar() -> void:
+	var s := KWHotbar.slots()
+	for i in build_slots.size():
+		var v := build_slots[i].get_child(0)
+		(v.get_child(0).get_child(1) as KWItemIcon).set_type(s[i])
+		(v.get_child(1) as Label).text = ObjectRegistry.get_def(s[i]).label if s[i] != "" else "—"
+		build_slots[i].modulate.a = 1.0 if s[i] != "" else 0.55
+
+
+## Barre d'outils : slot actif, état de la grille, sélection, emplacement occupé.
+func set_build_state(active: bool, placing: String, snap: bool, selection: String, grabbing: bool, blocked := false) -> void:
 	build_box.visible = active
 	foot.visible = not active
 	if not active:
 		return
+	var s := KWHotbar.slots()
 	for i in build_slots.size():
-		build_slots[i].theme_type_variation = "SlotActive" if ObjectRegistry.PALETTE[i] == placing else "Slot"
+		build_slots[i].theme_type_variation = "SlotActive" if placing != "" and s[i] == placing else "Slot"
 	var parts := ["Grille " + ("activée" if snap else "libre")]
 	if placing != "":
-		parts.append("Pose : " + ObjectRegistry.get_def(placing).label)
+		parts.append("Pose : " + ObjectRegistry.get_def(placing).label + ("  (emplacement occupé)" if blocked else ""))
 	if selection != "":
 		parts.append(("Déplacement : " if grabbing else "Sélection : ") + selection)
 	elif placing == "":
-		parts.append("Choisissez un objet (1 – 0) ou cliquez sur un objet")
+		parts.append("I : inventaire · 1 – 0 : barre rapide · clic : sélectionner")
 	build_status.text = "   ·   ".join(PackedStringArray(parts))

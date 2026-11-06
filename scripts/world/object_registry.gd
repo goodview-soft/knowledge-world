@@ -5,20 +5,89 @@ extends RefCounted
 ## size : (largeur, hauteur, profondeur) en mètres ; origine = bas-centre, face avant = +Z.
 
 const DEFS := {
-	"note": {"label": "Note", "size": Vector3(0.32, 0.42, 0.02), "panel": "note"},
-	"postit": {"label": "Post-it", "size": Vector3(0.16, 0.16, 0.01), "panel": "note"},
-	"card": {"label": "Fiche", "size": Vector3(0.44, 0.3, 0.02), "panel": "note"},
-	"whiteboard": {"label": "Tableau blanc", "size": Vector3(2.0, 1.2, 0.06), "panel": "whiteboard"},
-	"kanban": {"label": "Kanban", "size": Vector3(2.4, 1.4, 0.06), "panel": "kanban"},
-	"desk": {"label": "Bureau", "size": Vector3(1.6, 1.25, 0.8), "panel": "chat"},
-	"library": {"label": "Bibliothèque", "size": Vector3(1.6, 2.2, 0.42), "panel": "library"},
-	"table": {"label": "Table de travail", "size": Vector3(1.8, 0.76, 0.9), "panel": ""},
-	"lamp": {"label": "Lampe", "size": Vector3(0.34, 1.6, 0.34), "panel": ""},
-	"door": {"label": "Porte", "size": Vector3(1.3, 2.4, 0.16), "panel": "travel"},
-	"portal": {"label": "Portail", "size": Vector3(2.4, 3.4, 0.3), "panel": "travel"},
+	"note": {"label": "Note", "size": Vector3(0.32, 0.42, 0.02), "panel": "note", "cat": "knowledge", "desc": "Note Markdown à accrocher au mur ou poser sur un meuble. E pour l'éditer."},
+	"postit": {"label": "Post-it", "size": Vector3(0.16, 0.16, 0.01), "panel": "note", "cat": "knowledge", "desc": "Petit pense-bête coloré, idéal en grappe sur un mur."},
+	"card": {"label": "Fiche", "size": Vector3(0.44, 0.3, 0.02), "panel": "note", "cat": "knowledge", "desc": "Fiche de synthèse au format bristol."},
+	"whiteboard": {"label": "Tableau blanc", "size": Vector3(2.0, 1.2, 0.06), "panel": "whiteboard", "cat": "knowledge", "desc": "Dessin libre, textes, gomme : pour réfléchir en grand."},
+	"kanban": {"label": "Kanban", "size": Vector3(2.4, 1.4, 0.06), "panel": "kanban", "cat": "knowledge", "desc": "Colonnes et cartes pour suivre un projet."},
+	"desk": {"label": "Bureau", "size": Vector3(1.6, 1.25, 0.8), "panel": "chat", "cat": "knowledge", "mount": "floor", "desc": "Bureau avec écran : l'assistant contextuel de la salle."},
+	"library": {"label": "Bibliothèque", "size": Vector3(1.6, 2.2, 0.42), "panel": "library", "cat": "knowledge", "mount": "floor", "desc": "Documents importés (texte, PDF) liés à la salle."},
+	"table": {"label": "Table de travail", "size": Vector3(1.8, 0.76, 0.9), "panel": "", "cat": "furniture", "mount": "floor", "desc": "Grande table claire sur deux piétements."},
+	"orb": {"label": "Conscience (IA)", "size": Vector3(1.3, 2.1, 1.3), "panel": "chat", "cat": "knowledge", "mount": "floor", "desc": "Sphère de conscience liquide : l'IA de la pièce. Parlez-lui (E ou Entrée)."},
+	"poster": {"label": "Poster (image)", "size": Vector3(0.8, 1.1, 0.03), "panel": "poster", "cat": "deco", "solid": false, "desc": "Affiche une image de votre disque (PNG, JPG, WebP), au mur ou au sol."},
+	"lamp": {"label": "Lampe", "size": Vector3(0.34, 1.6, 0.34), "panel": "", "cat": "furniture", "mount": "floor", "desc": "Lampe sur pied à lumière chaude (couleur et intensité réglables)."},
+	"door": {"label": "Porte", "size": Vector3(1.3, 2.4, 0.16), "panel": "travel", "cat": "nav", "mount": "floor", "desc": "Passage vers une autre salle (destination à choisir après la pose)."},
+	"portal": {"label": "Portail", "size": Vector3(2.4, 3.4, 0.3), "panel": "travel", "cat": "nav", "inv": false, "desc": "Portail thématique (créé depuis la carte)."},
+	# --- Mobilier
+	"sofa": {"label": "Canapé", "size": Vector3(2.0, 0.85, 0.9), "panel": "", "cat": "furniture", "mount": "floor", "desc": "Canapé trois places en tissu, accoudoirs arrondis."},
+	"armchair": {"label": "Fauteuil", "size": Vector3(0.85, 0.9, 0.85), "panel": "", "cat": "furniture", "mount": "floor", "desc": "Fauteuil club pour lire au calme."},
+	"chair": {"label": "Chaise", "size": Vector3(0.45, 0.9, 0.5), "panel": "", "cat": "furniture", "mount": "floor", "desc": "Chaise en bois avec assise rembourrée."},
+	"coffee_table": {"label": "Table basse", "size": Vector3(1.1, 0.42, 0.6), "panel": "", "cat": "furniture", "mount": "floor", "desc": "Table basse avec tablette inférieure."},
+	"big_table": {"label": "Grande table", "size": Vector3(2.4, 0.76, 1.0), "panel": "", "cat": "furniture", "mount": "floor", "desc": "Table de réunion en bois massif, six places."},
+	"shelf": {"label": "Étagère", "size": Vector3(1.0, 1.8, 0.35), "panel": "", "cat": "furniture", "mount": "floor", "desc": "Étagère ouverte en métal et bois, quelques objets dessus."},
+	"plant": {"label": "Plante en pot", "size": Vector3(0.5, 1.2, 0.5), "panel": "", "cat": "furniture", "mount": "floor", "desc": "Plante verte dans un pot en terre cuite."},
+	"rug": {"label": "Tapis", "size": Vector3(2.4, 0.012, 1.6), "panel": "", "cat": "furniture", "mount": "floor", "solid": false, "desc": "Grand tapis bordé, non bloquant."},
+	"desk_lamp": {"label": "Lampe de bureau", "size": Vector3(0.25, 0.5, 0.25), "panel": "", "cat": "furniture", "desc": "Lampe articulée à poser sur un bureau ou une table."},
+	"pouf": {"label": "Pouf", "size": Vector3(0.5, 0.42, 0.5), "panel": "", "cat": "furniture", "mount": "floor", "desc": "Pouf rond moelleux."},
+	"bench": {"label": "Banc", "size": Vector3(1.4, 0.45, 0.4), "panel": "", "cat": "furniture", "mount": "floor", "desc": "Banc à lattes de bois."},
+	"cushions": {"label": "Coussins", "size": Vector3(0.6, 0.25, 0.4), "panel": "", "cat": "furniture", "solid": false, "desc": "Deux coussins à poser sur un canapé ou au sol."},
+	# --- Architecture
+	"wall": {"label": "Mur / cloison", "size": Vector3(2.0, 2.6, 0.12), "panel": "", "cat": "arch", "mount": "floor", "edge_snap": true, "width_resize": true, "desc": "Cloison pleine avec plinthe. S'accroche aux autres murs ; PgUp/PgDn = largeur."},
+	"half_wall": {"label": "Demi-mur", "size": Vector3(2.0, 1.1, 0.12), "panel": "", "cat": "arch", "mount": "floor", "edge_snap": true, "width_resize": true, "desc": "Muret à hauteur d'appui avec tablette."},
+	"glass_wall": {"label": "Mur vitré", "size": Vector3(2.0, 2.6, 0.06), "panel": "", "cat": "arch", "mount": "floor", "edge_snap": true, "width_resize": true, "desc": "Cloison vitrée à cadre fin : sépare sans fermer."},
+	"column": {"label": "Colonne", "size": Vector3(0.4, 2.8, 0.4), "panel": "", "cat": "arch", "mount": "floor", "desc": "Colonne ronde avec base et chapiteau."},
+	"platform": {"label": "Marche / estrade", "size": Vector3(2.0, 0.2, 1.2), "panel": "", "cat": "arch", "mount": "floor", "width_resize": true, "desc": "Estrade basse (20 cm) : on y monte en marchant."},
+	"arch": {"label": "Arche", "size": Vector3(2.0, 2.6, 0.3), "panel": "", "cat": "arch", "mount": "floor", "edge_snap": true,
+		"parts": [[Vector3(0.3, 1.6, 0.3), Vector3(-0.85, 0.8, 0)], [Vector3(0.3, 1.6, 0.3), Vector3(0.85, 0.8, 0)], [Vector3(2.0, 0.45, 0.3), Vector3(0, 2.375, 0)]],
+		"desc": "Arche en plein cintre : un passage ouvert dans une cloison."},
+	"railing": {"label": "Rambarde", "size": Vector3(2.0, 1.0, 0.06), "panel": "", "cat": "arch", "mount": "floor", "edge_snap": true, "width_resize": true, "desc": "Garde-corps à barreaux, main courante en bois."},
+	"ceiling_light": {"label": "Panneau lumineux", "size": Vector3(1.2, 0.06, 0.6), "panel": "", "cat": "arch", "mount": "ceiling", "solid": false, "desc": "Panneau de plafond diffusant une lumière douce (visez le plafond)."},
+	# --- Décoration
+	"frame": {"label": "Cadre", "size": Vector3(0.8, 0.6, 0.04), "panel": "", "cat": "deco", "solid": false, "desc": "Tableau abstrait encadré, à accrocher au mur."},
+	"clock": {"label": "Horloge", "size": Vector3(0.4, 0.4, 0.05), "panel": "", "cat": "deco", "mount": "wall", "solid": false, "desc": "Horloge murale (heure de la pose)."},
+	"vase": {"label": "Vase", "size": Vector3(0.22, 0.45, 0.22), "panel": "", "cat": "deco", "desc": "Vase en céramique avec quelques fleurs."},
+	"book_stack": {"label": "Pile de livres", "size": Vector3(0.3, 0.22, 0.22), "panel": "", "cat": "deco", "desc": "Quelques livres empilés."},
+	"globe": {"label": "Globe", "size": Vector3(0.35, 0.5, 0.35), "panel": "", "cat": "deco", "desc": "Globe terrestre sur pied."},
+	"sculpture": {"label": "Sculpture", "size": Vector3(0.4, 0.9, 0.4), "panel": "", "cat": "deco", "mount": "floor", "desc": "Sculpture abstraite sur socle."},
 }
-## Ordre de la palette du mode construction (touches 1..0).
+## Ordre de la palette du mode construction (touches 1..0) : barre rapide par défaut.
 const PALETTE := ["note", "postit", "card", "whiteboard", "kanban", "desk", "library", "table", "lamp", "door"]
+## Catégories de l'inventaire (ordre d'affichage).
+const CATEGORIES := [["knowledge", "Connaissance"], ["furniture", "Mobilier"], ["arch", "Architecture"], ["deco", "Décoration"], ["nav", "Navigation"]]
+
+
+## Types proposés dans l'inventaire, dans l'ordre de DEFS.
+static func inventory_types(cat := "") -> Array:
+	var out := []
+	for t in DEFS:
+		var d: Dictionary = DEFS[t]
+		if d.get("inv", true) and (cat == "" or d.get("cat", "") == cat):
+			out.append(t)
+	return out
+
+
+static func category_label(cat: String) -> String:
+	for c in CATEGORIES:
+		if c[0] == cat:
+			return c[1]
+	return cat
+
+
+## Le type bloque-t-il le joueur ? (DEFS "solid", vrai par défaut)
+static func is_solid(type: String) -> bool:
+	return bool(get_def(type).get("solid", true))
+
+
+## Boîtes de collision locales [{size, center}] (échelle appliquée) : vide si non bloquant,
+## découpage "parts" si défini (ex. arche : on passe dessous), sinon la boîte englobante.
+static func colliders(type: String, scl := Vector3.ONE) -> Array:
+	if not is_solid(type):
+		return []
+	var d := get_def(type)
+	if d.has("parts"):
+		return d.parts.map(func(pp): return {"size": pp[0] * scl, "center": pp[1] * scl})
+	var s: Vector3 = d.size * scl
+	return [{"size": s, "center": Vector3(0, s.y / 2.0, 0)}]
 
 
 static func get_def(type: String) -> Dictionary:
@@ -32,7 +101,8 @@ static func default_content(type: String) -> Dictionary:
 		"card": return {"text": "", "color": "#ffffff"}
 		"whiteboard": return {"strokes": [], "texts": []}
 		"kanban": return {"columns": [{"title": "À faire", "cards": []}, {"title": "En cours", "cards": []}, {"title": "Fait", "cards": []}]}
-		"desk": return {"messages": []}
+		"desk", "orb": return {"messages": []}
+		"poster": return {"image": "", "frame": true}
 	return {}
 
 
@@ -49,7 +119,7 @@ static func text_of(o: Dictionary) -> String:
 			return "\n".join(parts)
 		"whiteboard":
 			return " ".join(PackedStringArray(c.get("texts", []).map(func(t): return t.t)))
-		"desk":
+		"desk", "orb":
 			return "\n".join(PackedStringArray(c.get("messages", []).map(func(m): return m.text)))
 	return ""
 
@@ -117,6 +187,26 @@ static func style_slots(type: String) -> Array:
 		"table": return ["Plateau", "Pieds"]
 		"lamp": return ["Pied", "Abat-jour"]
 		"door", "portal": return ["Cadre", "Passage"]
+		"sofa", "armchair", "pouf": return ["Tissu", "Pieds / bordure"]
+		"chair": return ["Bois", "Assise"]
+		"coffee_table", "big_table", "bench": return ["Plateau", "Pieds"]
+		"shelf": return ["Tablettes", "Montants"]
+		"plant": return ["Pot", "Feuillage"]
+		"rug": return ["Centre", "Bordure"]
+		"desk_lamp": return ["Corps", "Abat-jour"]
+		"cushions": return ["Coussin 1", "Coussin 2"]
+		"wall", "half_wall": return ["Enduit", "Plinthe / tablette"]
+		"glass_wall": return ["Verre", "Cadre"]
+		"column", "arch": return ["Pierre", "Base / clé"]
+		"platform": return ["Dessus", "Nez de marche"]
+		"railing": return ["Barreaux", "Main courante"]
+		"ceiling_light": return ["Diffuseur", "Cadre"]
+		"frame": return ["Toile", "Cadre"]
+		"clock": return ["Contour", "Cadran"]
+		"vase": return ["Céramique", "Fleurs"]
+		"book_stack": return ["Teinte", "Pages"]
+		"globe": return ["Océans", "Pied"]
+		"sculpture": return ["Sculpture", "Socle"]
 	return []
 
 
@@ -219,4 +309,43 @@ static func build(o: Dictionary, extra := {}) -> Node3D:
 				pl.light_energy = 0.8
 				pl.omni_range = 4.0
 				root.add_child(pl)
+		"orb":
+			root.add_child(AIOrb.create(0.55, style_color(o, "primary", Color(0.35, 0.75, 1.0)), style_color(o, "secondary", Color(0.85, 0.55, 1.0))))
+		"poster":
+			PosterView.build(root, o, s)
+		_:
+			ObjectBuilders.build(root, o, s)
 	return root
+
+
+## Cylindre (axe Y par défaut ; rot en degrés pour l'orienter).
+static func cyl(parent: Node3D, r_top: float, r_bot: float, h: float, center: Vector3, m: Material, rot := Vector3.ZERO, segs := 24) -> MeshInstance3D:
+	var mi := MeshInstance3D.new()
+	var cm := CylinderMesh.new()
+	cm.top_radius = r_top
+	cm.bottom_radius = r_bot
+	cm.height = h
+	cm.radial_segments = segs
+	cm.rings = 1
+	mi.mesh = cm
+	mi.material_override = m
+	mi.position = center
+	mi.rotation_degrees = rot
+	parent.add_child(mi)
+	return mi
+
+
+## Sphère (scl pour l'aplatir : coussins, feuillage).
+static func sph(parent: Node3D, r: float, center: Vector3, m: Material, scl := Vector3.ONE) -> MeshInstance3D:
+	var mi := MeshInstance3D.new()
+	var sm := SphereMesh.new()
+	sm.radius = r
+	sm.height = r * 2.0
+	sm.radial_segments = 24
+	sm.rings = 12
+	mi.mesh = sm
+	mi.material_override = m
+	mi.position = center
+	mi.scale = scl
+	parent.add_child(mi)
+	return mi
