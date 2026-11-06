@@ -16,12 +16,64 @@ varying float bseed;
 varying vec3 lp;
 varying vec3 nrm;
 varying float hgt;
+float h31(vec3 p) { return fract(sin(dot(p, vec3(12.9898, 78.233, 37.719))) * 43758.5453); }
 void vertex() {
 	vec3 s = vec3(length(MODEL_MATRIX[0].xyz), length(MODEL_MATRIX[1].xyz), length(MODEL_MATRIX[2].xyz));
 	lp = VERTEX * s + vec3(0.0, s.y * 0.5, 0.0);
 	nrm = NORMAL;
 	hgt = s.y;
 	bseed = fract(sin(dot(MODEL_MATRIX[3].xz, vec2(12.9898, 78.233))) * 43758.5453);
+}
+// Interior mapping : rayon dans une boîte-pièce (murs, sol, plafond, meubles en silhouette, rideau).
+vec3 room(vec3 cell, vec2 c, vec3 d, float fade, out float lit) {
+	float W = win.z, H = win.w;
+	float D = 3.4 + 2.2 * h31(cell + 1.0);
+	lit = step(h31(cell + 2.0), mix(0.22, 0.55, night));
+	vec3 o = vec3(c.x, c.y, 0.0);
+	float tx = d.x > 0.0 ? (W - o.x) / d.x : (d.x < 0.0 ? -o.x / d.x : 1e5);
+	float ty = d.y > 0.0 ? (H - o.y) / d.y : (d.y < 0.0 ? -o.y / d.y : 1e5);
+	float tz = (D - o.z) / d.z;
+	float t = min(min(tx, ty), tz);
+	bool isz = tz <= min(tx, ty);
+	bool isy = !isz && ty <= tx;
+	vec3 hp = o + d * t;
+	vec3 wallc = 0.55 + 0.4 * vec3(h31(cell + 3.0), h31(cell + 4.0), h31(cell + 5.0));
+	vec3 col;
+	if (isz) {
+		col = wallc;
+		if (h31(cell + 6.0) > 0.4 && hp.x > W * 0.3 && hp.x < W * 0.3 + 0.7 && hp.y > 1.3 && hp.y < 2.0) { col = vec3(0.7, 0.45, 0.3) * wallc; }
+	} else if (isy) {
+		if (d.y < 0.0) { col = mix(vec3(0.55, 0.38, 0.24), vec3(0.4, 0.42, 0.45), step(0.5, h31(cell + 7.0))) * 0.9; }
+		else { col = vec3(0.92); }
+	} else { col = wallc * 0.82; }
+	// mobilier : un plan intermédiaire, silhouette selon la pièce
+	float zf = D * (0.35 + 0.3 * h31(cell + 8.0));
+	float tf = (zf - o.z) / d.z;
+	if (tf > 0.0 && tf < t) {
+		vec3 p = o + d * tf;
+		float k = floor(h31(cell + 9.0) * 6.0);
+		float x = p.x / W;
+		bool hit = false;
+		if (k < 1.0) { hit = (x > 0.15 && x < 0.8 && p.y < 0.45) || (x > 0.15 && x < 0.8 && p.y < 0.9 && abs(x - 0.475) > 0.2); }
+		else if (k < 2.0) { hit = (x > 0.3 && x < 0.7 && p.y > 0.7 && p.y < 0.78) || (x > 0.32 && x < 0.35 && p.y < 0.7) || (x > 0.65 && x < 0.68 && p.y < 0.7) || (x > 0.12 && x < 0.15 && p.y < 1.5) || (x > 0.08 && x < 0.19 && p.y > 1.3 && p.y < 1.55); }
+		else if (k < 3.0) { hit = (x > 0.1 && x < 0.9 && p.y < 0.55) || (x > 0.1 && x < 0.2 && p.y < 1.0); }
+		else if (k < 4.0) { hit = x > 0.6 && x < 0.85 && p.y < 1.9; }
+		else if (k < 5.0) { hit = abs(x - 0.3) < 0.1 * (1.2 - p.y * 0.5) && p.y < 1.1; }
+		if (hit) { col = vec3(0.18, 0.15, 0.13) + 0.25 * vec3(h31(cell + 10.0), h31(cell + 11.0), h31(cell + 12.0)); }
+	}
+	// rideau partiel
+	float cx = o.x + d.x * 0.1 / d.z;
+	float cw = h31(cell + 13.0);
+	float side = step(0.5, h31(cell + 14.0));
+	float edge = mix(cx - (W - win.x) * 0.5, (W + win.x) * 0.5 - cx, side);
+	if (cw > 0.45 && edge < cw * win.x * 0.55) { col = vec3(0.8, 0.5 + 0.4 * h31(cell + 15.0), 0.45 + 0.4 * h31(cell + 16.0)); }
+	float lightness = lit > 0.5 ? (1.0 - 0.45 * clamp(hp.z / D, 0.0, 1.0)) : 0.4;
+	vec3 lc = mix(vec3(1.0), vec3(1.0, 0.82, 0.55), night);
+	vec3 lcol = lit > 0.5 ? lc * mix(0.9, 1.5, night) : vec3(mix(0.42, 0.03, night));
+	vec3 detail = col * lcol * (lit > 0.5 ? lightness : 1.0);
+	// anti-aliasing : au loin, détails fondus vers la couleur moyenne de la pièce
+	vec3 avg = wallc * 0.72 * lcol * (lit > 0.5 ? 0.75 : 1.0);
+	return mix(detail, avg, fade);
 }
 void fragment() {
 	bool side = abs(nrm.y) < 0.5;
@@ -30,16 +82,34 @@ void fragment() {
 	vec3 col = texture(wall_tex, uv * 0.5).rgb * tint.rgb;
 	if (!side) { col *= 0.55; }
 	float m = 0.0;
+	vec2 c = vec2(0.0);
 	if (side && win.x > 0.0 && lp.y > win.w * 0.95 && lp.y < hgt - 0.6) {
-		vec2 c = vec2(mod(u, win.z), mod(lp.y, win.w));
+		c = vec2(mod(u, win.z), mod(lp.y, win.w));
 		float x0 = (win.z - win.x) * 0.5;
 		m = step(x0, c.x) * step(c.x, x0 + win.x) * step(0.9, c.y) * step(c.y, 0.9 + win.y);
+		float fr = 0.05;
+		float inner = step(x0 + fr, c.x) * step(c.x, x0 + win.x - fr) * step(0.9 + fr, c.y) * step(c.y, 0.9 + win.y - fr);
+		if (m > 0.5 && inner < 0.5) { col = mix(vec3(0.85), tint.rgb * 0.8, smoothstep(5.0, 25.0, length(VERTEX))); m = 0.0; }
+		else if (m > 0.5) {
+			vec3 cell = vec3(floor(u / win.z), floor(lp.y / win.w), bseed * 91.7);
+			vec3 ray = normalize((INV_VIEW_MATRIX * vec4(-VIEW, 0.0)).xyz);
+			vec3 axu = abs(nrm.x) > 0.5 ? vec3(0.0, 0.0, 1.0) : vec3(1.0, 0.0, 0.0);
+			vec3 d = vec3(dot(ray, axu), ray.y, max(dot(ray, -nrm), 0.03));
+			float lit;
+			float fade = max(smoothstep(5.0, 20.0, length(VERTEX)), 1.0 - smoothstep(0.1, 0.4, dot(ray, -nrm)));
+			vec3 r = room(cell, c, d, fade, lit);
+			float fres = pow(1.0 - clamp(dot(NORMAL, VIEW), 0.0, 1.0), 3.0);
+			vec3 sky = vec3(0.55, 0.68, 0.85) * mix(1.0, 0.05, night);
+			ALBEDO = vec3(0.02);
+			ROUGHNESS = 0.08;
+			METALLIC = 0.0;
+			EMISSION = r * (1.0 - 0.6 * fres) + sky * (0.12 + 0.5 * fres);
+		}
 	}
-	ALBEDO = mix(col, vec3(0.16, 0.24, 0.32), m);
-	METALLIC = m * 0.3;
-	ROUGHNESS = mix(rough, 0.12, m);
-	float lit = step(0.55, fract(sin((floor(u / win.z) + floor(lp.y / win.w) * 7.0) * 12.9898 + bseed * 78.233) * 43758.5453));
-	EMISSION = vec3(1.0, 0.8, 0.5) * m * night * lit * 1.3;
+	if (m < 0.5) {
+		ALBEDO = col;
+		ROUGHNESS = rough;
+	}
 }
 """
 

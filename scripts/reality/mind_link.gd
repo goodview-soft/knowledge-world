@@ -368,7 +368,7 @@ func _process(delta: float) -> void:
 			_store()
 	# Filet de sécurité réalité : chute hors du sol.
 	var pl: KWPlayer = main.player
-	if state == S.REALITY and pl.global_position.y < -5.0:
+	if state == S.REALITY and pl.global_position.y < -5.0 and not (pl.global_position.y > -520.0 and pl.global_position.y < -480.0):
 		pl.teleport(RealityWorld.ORIGIN + Vector3(0, 0.05, 3), 0.0)
 
 

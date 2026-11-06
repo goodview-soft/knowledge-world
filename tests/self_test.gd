@@ -445,6 +445,27 @@ static func mind_test(main) -> void:
 	check(main.mind.state == MindLink.S.PALACE and main.in_palace, "mind : transition passée par clic")
 	check(pl.global_position.distance_to(p0) < 0.3 and main.current_room == room0, "mind : retour à la dernière position du palais")
 	check(World.data.get("reality", {}).has("pos"), "mind : position réalité sauvegardée")
+	# Interior mapping + appartement visitable
+	check(rw.city.wall_mats.size() > 0 and (rw.city.wall_mats[0] as ShaderMaterial).shader.code.contains("vec3 room("), "fenêtres : shader interior mapping en place")
+	var apt := ApartmentInterior.new()
+	apt.generate("Test")
+	check(apt.room_count >= 4 and apt.furniture_count >= 5 and apt.window_count >= 2, "appartement généré (%s : %d pièces, %d meubles, %d fenêtres)" % [apt.layout_id, apt.room_count, apt.furniture_count, apt.window_count])
+	apt.free()
+	var hb := -1
+	for b in rw.city.buildings:
+		if b["role"] == "residence" and not rw.occupant_of(int(b["idx"])).is_empty():
+			hb = int(b["idx"])
+			break
+	check(hb >= 0, "appartement : un immeuble habité existe")
+	var oc: Dictionary = rw.occupant_of(hb)
+	rw.portals.open_for(hb, str(oc["who"]), oc["color"], true)
+	var dxf: Transform3D = rw.portals.a_xf
+	pl.teleport(dxf.origin + dxf.basis.z * 0.4, 0.0)
+	rw.portals.traverse(pl, true)
+	check(pl.global_position.y < -400.0 and pl.global_position.distance_to(rw.apartment.global_position) < 4.0, "appartement : entrée par la porte")
+	rw.portals.traverse(pl, false)
+	check(pl.global_position.y > -1.0 and pl.global_position.distance_to(dxf.origin) < 2.0, "appartement : sortie vers le trottoir")
+	rw.portals.close()
 	pl.force_active = false
 
 
@@ -453,6 +474,29 @@ static func shot(main, path: String) -> void:
 	for a in OS.get_cmdline_user_args():
 		if a.begins_with("--kw-shot-reality"):
 			await tree.create_timer(0.5).timeout
+			if a.ends_with("=facade") or a.ends_with("=apt"):
+				var rw: RealityWorld = main.mind.reality
+				rw.city.set_night(true)
+				var pl: KWPlayer = main.player
+				var tb := -1
+				for b in rw.city.buildings:
+					if b["role"] == "residence" and not rw.occupant_of(int(b["idx"])).is_empty():
+						tb = int(b["idx"])
+						break
+				var oc: Dictionary = rw.occupant_of(tb)
+				rw.portals.open_for(tb, str(oc["who"]), oc["color"], true)
+				var dx: Transform3D = rw.portals.a_xf
+				if a.ends_with("=apt"):
+					pl.teleport(dx.origin + dx.basis.z * 0.4, 0.0)
+					rw.portals.traverse(pl, true)
+					pl.global_position += Vector3(0, 0, 0.0)
+					pl.rotation.y = PI
+					pl.global_position = rw.apartment.global_position + Vector3(0, 0.05, 1.8)
+					pl.head.rotation.x = -0.05
+				else:
+					pl.teleport(dx.origin + dx.basis.z * 16.0 + Vector3(0, 0.05, 0), atan2(dx.basis.z.x, dx.basis.z.z))
+					pl.head.rotation.x = 0.2
+				await tree.create_timer(1.0).timeout
 			if a.ends_with("=bubble"):
 				main.mind.enter_palace()
 				await tree.create_timer(0.75).timeout

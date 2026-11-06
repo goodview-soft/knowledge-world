@@ -11,6 +11,10 @@ var sun: DirectionalLight3D
 var city: CityBuilder
 var director: BotDirector
 var talk: BotTalk
+var apartment: ApartmentInterior
+var portals: DoorPortals
+var player_home := -1
+const APT_POS := Vector3(0, -500, 0) # local : global = (10000, -500, 0)
 var _save_in := 10.0
 var _hud: CanvasLayer
 var _clock_label: Label
@@ -90,6 +94,15 @@ func _ready() -> void:
 	add_child(_hud)
 	talk = BotTalk.new()
 	add_child(talk)
+	apartment = ApartmentInterior.new()
+	apartment.name = "Apartment"
+	apartment.position = APT_POS
+	add_child(apartment)
+	portals = DoorPortals.new()
+	portals.name = "DoorPortals"
+	add_child(portals)
+	portals.setup(city, apartment)
+	_pick_player_home()
 	talk.closed.connect(func() -> void:
 		var m = get_parent()
 		if m != null and m.get("player") != null:
@@ -158,12 +171,59 @@ func aimed_bot(max_dist := 3.0) -> Bot:
 	return best
 
 
+## Résidence la plus proche de la place, sans habitant : « ton » appartement.
+func _pick_player_home() -> void:
+	var used := {}
+	for br in director.brains:
+		if not br.home.is_empty():
+			used[int(br.home["building"])] = true
+	var best := 1e9
+	var c: Vector3 = city.plaza.get_center()
+	for b in city.buildings:
+		if b["role"] != "residence":
+			continue
+		var d: float = (b["pos"] as Vector3).distance_to(c) + (1000.0 if used.has(int(b["idx"])) else 0.0)
+		if d < best:
+			best = d
+			player_home = int(b["idx"])
+
+
+## Occupant de la porte d'un bâtiment : {who, color, present} (le joueur si c'est « sa » porte).
+func occupant_of(bi: int) -> Dictionary:
+	for br in director.brains:
+		if not br.home.is_empty() and int(br.home["building"]) == bi:
+			return {"who": br.bot_name, "color": br.color, "present": br.kind == "home" and br.path.is_empty()}
+	if bi == player_home:
+		return {"who": "toi", "color": Color(0.5, 0.7, 0.9), "present": false}
+	return {}
+
+
+## Porte résidentielle (avec habitant) à moins de 2,6 m du joueur : ouvre le portail.
+func try_door() -> bool:
+	var pl := _main_player()
+	if pl == null or portals == null or portals.is_inside(pl):
+		return false
+	for b in city.buildings:
+		if b["role"] != "residence":
+			continue
+		var oc := occupant_of(int(b["idx"]))
+		if oc.is_empty():
+			continue
+		var dx: Transform3D = portals.door_xf_of(b)
+		var to: Vector3 = pl.global_position - dx.origin
+		to.y = 0.0
+		if to.length() < 2.6 and to.dot(dx.basis.z) > -0.2:
+			portals.open_for(int(b["idx"]), str(oc["who"]), oc["color"], bool(oc["present"]))
+			return true
+	return false
+
+
 func try_talk() -> bool:
 	if talk == null or talk.is_open():
 		return false
 	var b := aimed_bot()
 	if b == null:
-		return false
+		return try_door()
 	var pl := _main_player()
 	pl.enabled = false
 	talk.open(b)
@@ -176,6 +236,8 @@ func _process(_dt: float) -> void:
 	if pl == null or director == null:
 		return
 	director.set_listener(pl.global_position)
+	if portals != null and not portals.active and portals.is_inside(pl):
+		pl.teleport(ORIGIN + Vector3(0, 0.05, 3), 0.0) # sauvegarde reprise dans l'appartement : retour place
 	_hud.visible = _active()
 	_clock_label.text = director.clock.text()
 	talk.show_hint(aimed_bot() if _active() else null)

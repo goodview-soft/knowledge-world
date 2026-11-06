@@ -1,0 +1,32 @@
+{
+  "height": 2.6,
+  "palette": ["#e8dccb", "#cfd8c8", "#d8cfe0", "#e6c9c0", "#c9d6e2", "#ded6b8"],
+  "accent": ["#8c5a3c", "#3c6e8c", "#6b8c3c", "#8c3c5a", "#555b66"],
+  "layouts": [
+    {"id": "t2", "rooms": [
+      {"kind": "entry", "rect": [-1.5, 0, 3, 2.5]},
+      {"kind": "living", "rect": [-4, 2.5, 7, 5]},
+      {"kind": "kitchen", "rect": [3, 2.5, 3.5, 5]},
+      {"kind": "bedroom", "rect": [-4, 7.5, 7, 4]}]},
+    {"id": "t1", "rooms": [
+      {"kind": "entry", "rect": [-1.25, 0, 2.5, 2.2]},
+      {"kind": "living", "rect": [-3.5, 2.2, 7, 4.5]},
+      {"kind": "kitchen", "rect": [-3.5, 6.7, 3.5, 3]},
+      {"kind": "bedroom", "rect": [0, 6.7, 3.5, 3]}]},
+    {"id": "t3", "rooms": [
+      {"kind": "entry", "rect": [-1.5, 0, 3, 2.5]},
+      {"kind": "living", "rect": [-4.5, 2.5, 9, 5]},
+      {"kind": "kitchen", "rect": [4.5, 2.5, 3.5, 5]},
+      {"kind": "bedroom", "rect": [-4.5, 7.5, 4.5, 4]},
+      {"kind": "bedroom", "rect": [0, 7.5, 4.5, 4]}]}
+  ],
+  "furniture": {
+    "entry": [[{"type": "shelf", "at": [0.15, 0.2], "rot": 90}, {"type": "plant", "at": [0.85, 0.8], "rot": 0}, {"type": "rug", "at": [0.5, 0.6], "rot": 0, "opt": 0.5}],
+              [{"type": "plant", "at": [0.12, 0.2], "rot": 0}, {"type": "shelf", "at": [0.88, 0.2], "rot": -90, "opt": 0.7}]],
+    "living": [[{"type": "rug", "at": [0.5, 0.5], "rot": 0}, {"type": "sofa", "at": [0.5, 0.85], "rot": 180}, {"type": "armchair", "at": [0.15, 0.45], "rot": 90}, {"type": "table", "at": [0.5, 0.5], "rot": 0, "opt": 0.5}, {"type": "lamp", "at": [0.12, 0.85], "rot": 0}, {"type": "plant", "at": [0.9, 0.9], "rot": 0, "opt": 0.8}, {"type": "shelf", "at": [0.5, 0.06], "rot": 0}],
+               [{"type": "rug", "at": [0.5, 0.45], "rot": 0}, {"type": "sofa", "at": [0.88, 0.5], "rot": -90}, {"type": "armchair", "at": [0.5, 0.15], "rot": 0}, {"type": "lamp", "at": [0.9, 0.15], "rot": 0}, {"type": "shelf", "at": [0.1, 0.06], "rot": 0}, {"type": "plant", "at": [0.1, 0.9], "rot": 0}]],
+    "kitchen": [[{"type": "table", "at": [0.5, 0.5], "rot": 0}, {"type": "chair", "at": [0.5, 0.3], "rot": 0}, {"type": "chair", "at": [0.5, 0.7], "rot": 180}, {"type": "shelf", "at": [0.5, 0.05], "rot": 0}, {"type": "plant", "at": [0.88, 0.9], "rot": 0, "opt": 0.6}]],
+    "bedroom": [[{"type": "bed", "at": [0.5, 0.35], "rot": 0}, {"type": "lamp", "at": [0.12, 0.12], "rot": 0}, {"type": "shelf", "at": [0.88, 0.06], "rot": 0}, {"type": "rug", "at": [0.5, 0.7], "rot": 0, "opt": 0.6}],
+                [{"type": "bed", "at": [0.2, 0.5], "rot": 90}, {"type": "desk_lamp", "at": [0.08, 0.18], "rot": 0}, {"type": "table", "at": [0.75, 0.9], "rot": 180}, {"type": "chair", "at": [0.75, 0.7], "rot": 0}, {"type": "plant", "at": [0.9, 0.2], "rot": 0}]]
+  }
+}
