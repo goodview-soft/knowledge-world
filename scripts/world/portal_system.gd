@@ -11,23 +11,49 @@ const PREVIEW_SPACING := 400.0
 const RES_SCALE := 0.6
 const SHADER_CODE := """
 shader_type spatial;
-render_mode unshaded, cull_disabled, shadows_disabled;
+render_mode cull_disabled, shadows_disabled, specular_schlick_ggx;
 uniform sampler2D view_tex : source_color, filter_linear, repeat_disable;
 uniform vec4 tint : source_color = vec4(0.6, 0.8, 1.0, 1.0);
 uniform float live = 0.0;
 uniform float near_f = 0.0;
 uniform float is_portal = 1.0;
+uniform vec3 player_local = vec3(0.0, 0.0, 5.0);
+uniform float absorb = 0.0;
+varying float v_disp;
+varying vec2 v_grad;
+void vertex() {
+	// Surface liquide : creux qui « aspire » vers le joueur proche + ondes concentriques.
+	vec2 q = VERTEX.xy - player_local.xy;
+	float r2 = dot(q, q);
+	float w = 0.16 + 0.22 * is_portal;
+	float well = exp(-r2 / w);
+	float ripple = sin(sqrt(r2) * 22.0 - TIME * 7.0) * 0.014 * exp(-r2 * 1.2);
+	float idle = sin(VERTEX.x * 6.0 + TIME * 1.3) * sin(VERTEX.y * 5.0 - TIME * 1.1) * 0.006 * is_portal;
+	float d = -absorb * 0.24 * well + absorb * ripple + idle;
+	VERTEX.z += d;
+	v_disp = d;
+	v_grad = (2.0 * q / w) * well * absorb * 0.24;
+	NORMAL = normalize(vec3(-v_grad.x, -v_grad.y, 1.0));
+}
 void fragment() {
 	vec2 c = UV - 0.5;
 	float edge = smoothstep(0.3, 0.5, max(abs(c.x), abs(c.y)));
 	float t = TIME;
 	vec2 wob = vec2(sin(UV.y * 24.0 + t * 1.6), cos(UV.x * 20.0 + t * 1.3)) * (0.0015 + 0.006 * near_f) * (0.25 + edge) * is_portal;
-	vec3 scene = texture(view_tex, SCREEN_UV + wob).rgb;
-	vec3 idle = tint.rgb * (0.85 + 0.15 * sin(t * 1.5 + UV.y * 6.0));
-	vec3 col = mix(idle, scene, live);
+	vec2 refr = v_grad * 0.02 + vec2(v_disp) * 0.05;
+	vec3 scene = texture(view_tex, SCREEN_UV + wob + refr).rgb;
+	vec3 idle_c = tint.rgb * (0.85 + 0.15 * sin(t * 1.5 + UV.y * 6.0));
+	vec3 col = mix(idle_c, scene, live);
 	col += tint.rgb * edge * (0.25 + 0.75 * near_f) * (0.4 + 0.6 * is_portal) * 0.9;
-	col += tint.rgb * is_portal * live * 0.05 * sin(UV.y * 90.0 - t * 4.0);
-	ALBEDO = col;
+	col += tint.rgb * is_portal * live * 0.012 * sin(UV.y * 90.0 - t * 4.0);
+	col += tint.rgb * absorb * 0.5 * exp(-dot(v_grad, v_grad) * 0.5) * clamp(-v_disp * 6.0, 0.0, 1.0);
+	// Verre : l'image traverse, les reflets (SSR + lumières) apparaissent selon l'angle.
+	float fres = pow(1.0 - clamp(dot(NORMAL, VIEW), 0.0, 1.0), 3.0);
+	ALBEDO = vec3(0.015);
+	METALLIC = 0.0;
+	ROUGHNESS = 0.03;
+	SPECULAR = 0.75;
+	EMISSION = col * (1.0 - fres * 0.6);
 }
 """
 
@@ -38,6 +64,36 @@ var _cooldown := 0.0
 var _flash: ColorRect
 var _sound: AudioStreamPlayer
 var _refresh_pending := false
+var _swirl: ColorRect
+var _swirl_mat: ShaderMaterial
+var _swirl_t := 0.0 # effet de sortie (décroît)
+var _approach := 0.0 # aspiration à l'approche
+var _attractors := {} # Entry -> GPUParticlesAttractorSphere3D
+
+const SWIRL_CODE := """
+shader_type canvas_item;
+uniform sampler2D screen_tex : hint_screen_texture, filter_linear_mipmap;
+uniform float amount = 0.0;
+uniform vec4 tint : source_color = vec4(0.7, 0.85, 1.0, 1.0);
+void fragment() {
+	vec2 c = SCREEN_UV - 0.5;
+	float r = length(c);
+	float a = amount;
+	float ang = a * 2.6 * (1.0 - smoothstep(0.0, 0.75, r));
+	vec2 rc = vec2(c.x * cos(ang) - c.y * sin(ang), c.x * sin(ang) + c.y * cos(ang));
+	vec2 suv = 0.5 + rc * (1.0 - a * 0.3 * (1.0 - r));
+	vec3 col = vec3(0.0);
+	for (int i = 0; i < 6; i++) {
+		float k = float(i) / 6.0 * a * 0.09;
+		col.r += texture(screen_tex, suv - c * k * 1.25).r;
+		col.g += texture(screen_tex, suv - c * k).g;
+		col.b += texture(screen_tex, suv - c * k * 0.75).b;
+	}
+	col /= 6.0;
+	col = mix(col, tint.rgb, a * 0.4 * smoothstep(0.15, 0.85, r));
+	COLOR = vec4(col, 1.0);
+}
+"""
 
 
 class Entry:
@@ -73,6 +129,27 @@ func _ready() -> void:
 	_sound.stream = _make_whoosh()
 	_sound.volume_db = -8.0
 	add_child(_sound)
+	# Distorsion plein écran (aspiration / éjection) : tourbillon + aberration chromatique.
+	_swirl_mat = ShaderMaterial.new()
+	var sh := Shader.new()
+	sh.code = SWIRL_CODE
+	_swirl_mat.shader = sh
+	_swirl = ColorRect.new()
+	_swirl.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_swirl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_swirl.material = _swirl_mat
+	_swirl.visible = false
+	var under_ui := CanvasLayer.new()
+	under_ui.layer = 0 # sous l'interface (layer 1) : seule la 3D est déformée
+	add_child(under_ui)
+	under_ui.add_child(_swirl)
+	# Reflets dans les portails : réflexions en espace écran.
+	if main != null and main.env != null:
+		main.env.ssr_enabled = true
+		main.env.ssr_max_steps = 48
+		main.env.ssr_fade_in = 0.15
+		main.env.ssr_fade_out = 2.0
+		main.env.ssr_depth_tolerance = 0.2
 
 # ------------------------------------------------------------------ construction
 
@@ -159,6 +236,8 @@ func _make_entry(o: Dictionary, target: String, offset: Vector3) -> Entry:
 	e.quad = MeshInstance3D.new()
 	var qm := QuadMesh.new()
 	qm.size = e.inner
+	qm.subdivide_width = 28
+	qm.subdivide_depth = 40
 	e.quad.mesh = qm
 	e.quad.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	e.mat = ShaderMaterial.new()
@@ -193,12 +272,18 @@ func _hide_near_exit(geo: Node3D, exit_xf: Transform3D) -> void:
 func _process(delta: float) -> void:
 	_cooldown = maxf(0.0, _cooldown - delta)
 	if entries.is_empty():
+		_update_swirl(delta, 0.0)
 		return
 	var cam: Camera3D = main.player.cam
 	var pp: Vector3 = main.player.global_position
 	var vsize := Vector2i((get_viewport().get_visible_rect().size * RES_SCALE).max(Vector2(64, 64)))
 	# Choix des passages rendus en direct : les plus proches, vus de face.
 	var cands := []
+	var approach := 0.0
+	for k in _attractors.keys():
+		if not k in entries:
+			_attractors[k].queue_free()
+			_attractors.erase(k)
 	for e in entries:
 		var node = main.nodes.get(e.obj_id)
 		if node == null or not is_instance_valid(node):
@@ -208,8 +293,25 @@ func _process(delta: float) -> void:
 		var dist := local.length()
 		e.quad.global_transform = ta * Transform3D(Basis(), Vector3(0, e.inner_y, e.zf))
 		e.mat.set_shader_parameter("near_f", clampf(1.0 - (dist - 0.5) / 3.0, 0.0, 1.0))
+		# Aspiration : surface qui se creuse vers le joueur, particules attirées.
+		var ql := e.quad.global_transform.affine_inverse() * cam.global_position
+		var inside := absf(ql.x) < e.inner.x * 0.75 and ql.y > -e.inner.y * 0.6 and ql.y < e.inner.y * 0.6
+		var ab := clampf(1.0 - (ql.z - 0.35) / 1.6, 0.0, 1.0) if inside and ql.z > -0.2 else 0.0
+		e.mat.set_shader_parameter("player_local", ql)
+		e.mat.set_shader_parameter("absorb", ab)
+		approach = maxf(approach, ab)
+		var at: GPUParticlesAttractorSphere3D = _attractors.get(e)
+		if at == null:
+			at = GPUParticlesAttractorSphere3D.new()
+			at.radius = 2.2
+			at.attenuation = 1.2
+			add_child(at)
+			_attractors[e] = at
+		at.global_position = e.quad.global_transform * Vector3(0, 0, -0.3)
+		at.strength = 4.0 + 10.0 * ab
 		if local.z > 0.05 and dist < LIVE_DIST:
 			cands.append([dist, e])
+	_update_swirl(delta, approach)
 	cands.sort_custom(func(a, b): return a[0] < b[0])
 	var live_set := {}
 	for k in mini(MAX_LIVE, cands.size()):
@@ -220,6 +322,9 @@ func _process(delta: float) -> void:
 			e.live = on
 			e.vp.render_target_update_mode = SubViewport.UPDATE_ALWAYS if on else SubViewport.UPDATE_DISABLED
 			e.mat.set_shader_parameter("live", 1.0 if on else 0.0)
+			if on and e.cam.environment != null:
+				e.cam.environment.ssr_enabled = false
+				e.cam.environment.ssil_enabled = false
 		if on:
 			if e.vp.size != vsize:
 				e.vp.size = vsize
@@ -281,13 +386,26 @@ func _traverse(e: Entry, ta: Transform3D) -> void:
 
 # ------------------------------------------------------------------ effet « wow »
 
+func _update_swirl(delta: float, approach: float) -> void:
+	_swirl_t = maxf(0.0, _swirl_t - delta * 1.1)
+	_approach = lerpf(_approach, approach, 1.0 - exp(-6.0 * delta))
+	var a := maxf(_swirl_t, _approach * _approach * 0.12)
+	_swirl.visible = a > 0.005
+	if _swirl.visible:
+		_swirl_mat.set_shader_parameter("amount", a)
+
+
 func play_effect(color: Color) -> void:
 	var cam: Camera3D = main.player.cam
+	_swirl_t = 1.0
+	_swirl_mat.set_shader_parameter("tint", color.lightened(0.3))
+	cam.rotation.z = 0.12
+	create_tween().tween_property(cam, "rotation:z", 0.0, 0.9).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
 	var base := float(KWSettings.get_value("fov"))
 	cam.fov = base + 24.0
 	var tw := create_tween()
 	tw.tween_property(cam, "fov", base, 0.9).set_trans(Tween.TRANS_EXPO).set_ease(Tween.EASE_OUT)
-	_flash.color = Color(color.lightened(0.5), 0.6)
+	_flash.color = Color(color.lightened(0.5), 0.35)
 	var tf := create_tween()
 	tf.tween_property(_flash, "color:a", 0.0, 0.8).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
 	if _sound.stream != null:
