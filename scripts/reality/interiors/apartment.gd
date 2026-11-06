@@ -88,7 +88,7 @@ func _room(i: int, rooms: Array, rects: Array, hgt: float, accent: Color) -> voi
 	room_count += 1
 	var fcol := {"entry": Color(0.45, 0.4, 0.36), "living": Color(0.55, 0.4, 0.26), "kitchen": Color(0.7, 0.7, 0.68), "bedroom": Color(0.5, 0.42, 0.34)}.get(kind, Color(0.5, 0.45, 0.4)) as Color
 	var c3 := Vector3(r.position.x + r.size.x * 0.5, 0, r.position.y + r.size.y * 0.5)
-	_box(Vector3(r.size.x, 0.2, r.size.y), c3 + Vector3(0, -0.1, 0), ObjectRegistry.mat(fcol, 0.0, 0.7), true)
+	_box(Vector3(r.size.x, 0.2, r.size.y), c3 + Vector3(0, -0.1 + float(absi(kind.hash()) % 5) * 0.003, 0), ObjectRegistry.mat(fcol, 0.0, 0.7), true)
 	_box(Vector3(r.size.x, 0.2, r.size.y), c3 + Vector3(0, hgt + 0.1, 0), ObjectRegistry.mat(Color(0.93, 0.93, 0.9)), true)
 	var lamp := OmniLight3D.new()
 	lamp.position = c3 + Vector3(0, hgt - 0.4, 0)
@@ -449,7 +449,9 @@ func _building_floor(plan: Dictionary, f: int, apt_id: String, ox: float, accent
 			_box(Vector3(1.2, 0.2, r.size.y), Vector3(r.end.x - 0.6, _yoff - 0.1, c3.z), _cmat(Color(0.45, 0.43, 0.4)), true)
 		else:
 			var fcol: Color = fcols.get(kind, Color(0.45, 0.42, 0.4))
-			_box(Vector3(r.size.x, 0.2, r.size.y), Vector3(c3.x, _yoff - 0.1, c3.z), _cmat(fcol), true)
+			# Décalage infime par type de sol : les dalles voisines qui se chevauchent ne clignotent plus.
+			var eps: float = float(absi(kind.hash()) % 5) * 0.003
+			_box(Vector3(r.size.x, 0.2, r.size.y), Vector3(c3.x, _yoff - 0.1 + eps, c3.z), _cmat(fcol), true)
 		if f == floor_count - 1:
 			_box(Vector3(r.size.x, 0.2, r.size.y), Vector3(c3.x, _yoff + fh + 0.1, c3.z), _cmat(Color(0.93, 0.93, 0.9)), true)
 		var ly: float = _yoff + fh - 0.45
