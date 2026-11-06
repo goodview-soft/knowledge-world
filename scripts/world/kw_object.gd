@@ -41,6 +41,7 @@ func refresh() -> void:
 		bs.size = (part.size as Vector3).max(Vector3(0.05, 0.05, 0.05))
 		cs.shape = bs
 		cs.position = part.center
+		cs.rotation = part.get("rot", Vector3.ZERO)
 		body.add_child(cs)
 	add_child(body)
 

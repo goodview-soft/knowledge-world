@@ -22,7 +22,13 @@ var _tint_bad: StandardMaterial3D
 var _grab_tinted := false
 
 
+var structure: StructureTool
+
+
 func _ready() -> void:
+	structure = StructureTool.new()
+	structure.build = self
+	add_child(structure)
 	_sel_box = MeshInstance3D.new()
 	_sel_box.mesh = BoxMesh.new()
 	var m := ObjectRegistry.mat(Color(1.0, 0.8, 0.35), 1.0)
@@ -58,6 +64,7 @@ func toggle() -> void:
 	if not active:
 		cancel()
 		deselect()
+		structure.stop()
 	_update_hud()
 
 
@@ -98,6 +105,11 @@ func select(id: String) -> void:
 func _start_placing(type: String) -> void:
 	cancel()
 	deselect()
+	if ObjectRegistry.get_def(type).get("tool", false):
+		if not active:
+			toggle()
+		structure.start(type)
+		return
 	placing = type
 	_rot = 0.0
 	var fake := {"id": "ghost", "type": type, "name": ObjectRegistry.get_def(type).label, "content": ObjectRegistry.default_content(type), "params": {}}
@@ -283,6 +295,11 @@ func _process(_delta: float) -> void:
 func _unhandled_input(event: InputEvent) -> void:
 	if not active or main.panel != null or Input.mouse_mode != Input.MOUSE_MODE_CAPTURED:
 		return
+	if structure.active:
+		# Pendant un tracé, seules les touches de palette restent actives.
+		if not (event is InputEventKey and event.pressed and event.physical_keycode >= KEY_0 and event.physical_keycode <= KEY_9):
+			return
+		structure.stop()
 	if event is InputEventMouseButton and event.pressed:
 		match event.button_index:
 			MOUSE_BUTTON_LEFT: _click()

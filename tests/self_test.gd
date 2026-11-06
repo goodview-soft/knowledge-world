@@ -352,12 +352,57 @@ static func run(main) -> void:
 	await tree.process_frame
 	check(main.chat.log_box.get_child_count() == n0 + 2 and main.player.enabled, "message + réponse de la conscience affichés")
 	check(not "…" in main.chat.log_box.get_child(main.chat.log_box.get_child_count() - 1).text, "réponse complète reçue")
+	# Structures : mur tracé, plancher d'étage, escalier praticable, matériau.
+	main.enter_room(W.data.hub)
+	var st: StructureTool = main.build.structure
+	main.build._start_placing("struct_wall")
+	check(st.active and main.build.active, "outil de tracé actif")
+	st._a = Vector3(-6, 0, 4)
+	var wspec: Dictionary = st._spec(Vector3(-2, 0, 4))
+	var wid: String = st.place("struct_wall", wspec.pos, wspec.rot, wspec.scale)
+	check(is_equal_approx(W.vec(W.data.objects[wid].scale).x, 4.15), "mur tracé de longueur exacte (4 m + recouvrement)")
+	st.level = 1
+	st.type = "struct_floor"
+	st._a = Vector3(4, 3, -2)
+	var fspec: Dictionary = st._spec(Vector3(8, 3, 2))
+	var fid: String = st.place("struct_floor", fspec.pos, fspec.rot, fspec.scale)
+	check(is_equal_approx(W.vec(W.data.objects[fid].pos).y, 2.8), "plancher posé à l'étage 1 (y = %s, spec %s)" % [W.vec(W.data.objects[fid].pos).y, fspec.pos])
+	st.stop()
+	main.build.toggle()
+	var sid: String = W.create_object("stairs", W.data.hub, Vector3(-4, 0, 0), Vector3.ZERO, Vector3.ONE, "", {}, {"style": {"material": "pierre"}})
+	await tree.physics_frame
+	check(main.nodes[sid].body.get_child_count() == 1, "escalier : rampe de collision")
+	main.player.teleport(Vector3(-4, 0.05, 3.2), 0.0)
+	main.player.force_active = true
+	Input.action_press("move_forward")
+	var ymax := 0.0
+	for _i in 150:
+		await tree.physics_frame
+		ymax = maxf(ymax, main.player.global_position.y)
+	Input.action_release("move_forward")
+	main.player.force_active = false
+	check(ymax > 2.5, "on monte l'escalier jusqu'à l'étage (y max = %.2f)" % ymax)
+	var pr: Dictionary = W.data.objects[wid].params.duplicate(true)
+	pr.style.material = "brique"
+	W.update_object(wid, {"params": pr})
+	check(StructureKit.material_of(W.data.objects[wid]) == "brique", "matériau modifiable (brique)")
+	for i in [wid, fid, sid]:
+		W.delete_object(i)
 	print("SELFTEST ", "OK" if fails == 0 else "ÉCHECS : %d" % fails)
 	tree.quit(0 if fails == 0 else 1)
 
 
 static func shot(main, path: String) -> void:
 	var tree: SceneTree = main.get_tree()
+	if "--kw-shot-structures" in OS.get_cmdline_user_args():
+		var W = tree.root.get_node("World")
+		var h: String = W.data.hub
+		W.create_object("struct_wall", h, Vector3(-3, 0, 2), Vector3(0, 0, 0), Vector3(6.15, 1, 1), "", {}, {"style": {"material": "brique"}})
+		W.create_object("struct_wall", h, Vector3(-6, 0, 4.5), Vector3(0, 90, 0), Vector3(5.15, 1, 1), "", {}, {"style": {"material": "brique"}})
+		W.create_object("struct_floor", h, Vector3(-3, -0.19, 4.5), Vector3.ZERO, Vector3(6, 1, 5), "", {}, {"style": {"material": "bois"}})
+		W.create_object("stairs", h, Vector3(2.5, 0, 4), Vector3.ZERO, Vector3.ONE, "", {}, {"style": {"material": "pierre"}})
+		W.create_object("struct_wall", h, Vector3(4.5, 0, 4), Vector3(0, 90, 0), Vector3(4.15, 1, 1), "", {}, {"style": {"material": "carrelage", "primary": "#cfd8dc"}})
+		main.player.teleport(Vector3(0, 0.05, 9), 0.5)
 	print("TTS voix disponibles : ", DisplayServer.tts_get_voices().size(), " fr : ", DisplayServer.tts_get_voices_for_language("fr").size())
 	if "--kw-shot-title" in OS.get_cmdline_user_args():
 		main.show_title()

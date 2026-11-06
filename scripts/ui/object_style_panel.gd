@@ -27,11 +27,16 @@ func _init(obj_id: String) -> void:
 		var p_def: String = defs[0] if defs[0] != "" else str(o.get("content", {}).get("color", "#f2efe6"))
 		color_field(c1, slots[0], ObjectRegistry.style_color(o, "primary", Color(p_def)), func(c: Color): _put("primary", c.to_html(false)))
 		color_field(c1, slots[1], ObjectRegistry.style_color(o, "secondary", Color(defs[1])), func(c: Color): _put("secondary", c.to_html(false)))
+	if o.type in ["struct_wall", "struct_floor", "stairs"]:
+		var cs := card(body, "Matériau")
+		var opts := StructureKit.MAT_ORDER.map(func(k): return [k, StructureKit.MATERIALS[k].label])
+		choice(cs, "Motif", opts, StructureKit.material_of(o), func(k: String): _put("material", k))
+		color_field(cs, "Teinte", StructureKit.color_of(o), func(c: Color): _put("primary", c.to_html(false)))
 	if o.type == "lamp":
 		var c2 := card(body, "Lumière")
 		color_field(c2, "Couleur", ObjectRegistry.style_color(o, "light_color", Color(1.0, 0.83, 0.62)), func(c: Color): _put("light_color", c.to_html(false)))
 		slider(c2, "Intensité", ObjectRegistry.style_float(o, "light_energy", 0.9), 0.0, 3.0, 0.05, func(v: float): _put("light_energy", v))
-	if slots.is_empty() and o.type != "lamp":
+	if slots.is_empty() and not o.type in ["lamp", "struct_wall", "struct_floor", "stairs"]:
 		dim(body, "Ce type d'objet se personnalise uniquement par son nom.")
 	spacer(body)
 	var row := hbox(body)

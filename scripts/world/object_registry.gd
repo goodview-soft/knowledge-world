@@ -35,6 +35,9 @@ const DEFS := {
 	"wall": {"label": "Mur / cloison", "size": Vector3(2.0, 2.6, 0.12), "panel": "", "cat": "arch", "mount": "floor", "edge_snap": true, "width_resize": true, "desc": "Cloison pleine avec plinthe. S'accroche aux autres murs ; PgUp/PgDn = largeur."},
 	"half_wall": {"label": "Demi-mur", "size": Vector3(2.0, 1.1, 0.12), "panel": "", "cat": "arch", "mount": "floor", "edge_snap": true, "width_resize": true, "desc": "Muret à hauteur d'appui avec tablette."},
 	"glass_wall": {"label": "Mur vitré", "size": Vector3(2.0, 2.6, 0.06), "panel": "", "cat": "arch", "mount": "floor", "edge_snap": true, "width_resize": true, "desc": "Cloison vitrée à cadre fin : sépare sans fermer."},
+	"struct_wall": {"label": "Mur tracé", "size": Vector3(1.0, 3.0, 0.15), "panel": "", "cat": "arch", "mount": "floor", "tool": true, "desc": "Tracez un mur point à point (grille 0,5 m). Matériaux à motifs : brique, bois, pierre… (M)."},
+	"struct_floor": {"label": "Sol / plancher", "size": Vector3(1.0, 0.2, 1.0), "panel": "", "cat": "arch", "mount": "floor", "tool": true, "desc": "Tracez un rectangle de sol, à n'importe quel étage (PgUp/PgDn)."},
+	"stairs": {"label": "Escalier", "size": Vector3(1.1, 3.0, 4.5), "panel": "", "cat": "arch", "mount": "floor", "tool": true, "desc": "Escalier droit d'un étage (3 m), praticable. R pour pivoter."},
 	"column": {"label": "Colonne", "size": Vector3(0.4, 2.8, 0.4), "panel": "", "cat": "arch", "mount": "floor", "desc": "Colonne ronde avec base et chapiteau."},
 	"platform": {"label": "Marche / estrade", "size": Vector3(2.0, 0.2, 1.2), "panel": "", "cat": "arch", "mount": "floor", "width_resize": true, "desc": "Estrade basse (20 cm) : on y monte en marchant."},
 	"arch": {"label": "Arche", "size": Vector3(2.0, 2.6, 0.3), "panel": "", "cat": "arch", "mount": "floor", "edge_snap": true,
@@ -81,6 +84,8 @@ static func is_solid(type: String) -> bool:
 ## Boîtes de collision locales [{size, center}] (échelle appliquée) : vide si non bloquant,
 ## découpage "parts" si défini (ex. arche : on passe dessous), sinon la boîte englobante.
 static func colliders(type: String, scl := Vector3.ONE) -> Array:
+	if type == "stairs":
+		return StructureKit.stair_ramp(scl)
 	if not is_solid(type):
 		return []
 	var d := get_def(type)
@@ -313,6 +318,8 @@ static func build(o: Dictionary, extra := {}) -> Node3D:
 			root.add_child(AIOrb.create(0.55, style_color(o, "primary", Color(0.35, 0.75, 1.0)), style_color(o, "secondary", Color(0.85, 0.55, 1.0))))
 		"poster":
 			PosterView.build(root, o, s)
+		"struct_wall", "struct_floor", "stairs":
+			StructureKit.build(root, o, s)
 		_:
 			ObjectBuilders.build(root, o, s)
 	return root

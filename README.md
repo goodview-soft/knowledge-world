@@ -51,3 +51,11 @@ Carte mentale, tableau comparatif, tableau de suivi, terminal/écran/statistique
 ## IA
 Par défaut : assistant simulé local. Pour Ollama local, créer `user://ai_config.json` :
 `{"provider": "ollama", "url": "http://localhost:11434", "model": "llama3.2"}`. Aucune clé API dans le projet.
+
+## Structures (mode construction, catégorie Architecture)
+Mur tracé (clic A puis clic B, enchaînement), Sol / plancher (rectangle), Escalier (1 étage, R pivoter).
+PgUp/PgDn : étage (3 m) · M : matériau (enduit, brique, bois, carrelage, pierre, béton, marbre, sombre) · clic droit/Échap : quitter.
+Motifs plaqués en coordonnées monde : raccords sans couture. T sur une pièce : motif + teinte.
+
+## Conscience
+Entrée : parler dans la pièce (chat façon Minecraft) · Entrée maintenue : chat complet. Réponses lues à voix haute (TTS système, réglage « tts »).
