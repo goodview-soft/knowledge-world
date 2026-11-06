@@ -83,7 +83,7 @@ func open_for(bi: int, who: String, color: Color, present: bool, apartment_id :=
 
 func _leg_quad(k: int, xf: Transform3D) -> void:
 	var q: MeshInstance3D = _legs[k]["quad"]
-	q.global_transform = xf * Transform3D(Basis(), Vector3(0, ApartmentInterior.DOOR_H * 0.5, 0.03))
+	q.global_transform = xf * Transform3D(Basis(), Vector3(0, ApartmentInterior.DOOR_H * 0.5, 0.14)) # devant la porte dessinée de la façade (épaisseur 0,12)
 	q.visible = true
 
 
