@@ -208,7 +208,7 @@ func build(cfg: Dictionary) -> void:
 	rm.albedo_color = Color(0.11, 0.11, 0.125)
 	rm.roughness = 0.95
 	road.material_override = rm
-	road.position.y = 0.02
+	road.position.y = 0.0 # sous le marquage (0,035-0,045), au-dessus des champs (-0,035)
 	road.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	add_child(road)
 	var slabs: Array = []   # trottoirs

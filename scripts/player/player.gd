@@ -72,7 +72,7 @@ func _init() -> void:
 	add_child(head)
 	cam = Camera3D.new()
 	cam.fov = 72
-	cam.near = 0.05
+	cam.near = 0.1
 	head.add_child(cam)
 	ray = RayCast3D.new()
 	ray.collision_mask = 11 # murs, objets, passages (portes/portails)

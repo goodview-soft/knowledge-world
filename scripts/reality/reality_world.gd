@@ -51,6 +51,7 @@ func _init() -> void:
 	var pm := PlaneMesh.new()
 	pm.size = Vector2(620, 620)
 	mi.mesh = pm
+	mi.position.y = -0.14 # couches de sol bien espacées (anti z-fighting)
 	var sh := Shader.new()
 	sh.code = FLOOR_SHADER
 	var mat := ShaderMaterial.new()

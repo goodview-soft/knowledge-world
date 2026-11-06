@@ -59,7 +59,7 @@ func _ground(radius: float) -> void:
 	pm.size = Vector2(radius * 3.0, radius * 3.0)
 	mi.mesh = pm
 	mi.material_override = _mat(Color(0.45, 0.6, 0.32))
-	mi.position.y = -0.03
+	mi.position.y = -0.09
 	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	add_child(mi)
 
@@ -75,7 +75,7 @@ func _country_roads(radius: float, every: int) -> void:
 			for sg in [-1, 1]:
 				var len: float = radius - half
 				var cz: float = sg * (half + len * 0.5 - 5.0)
-				xfs.append(Transform3D(Basis.from_scale(Vector3(width, 1, len)), Vector3(x, 0.025, cz)))
+				xfs.append(Transform3D(Basis.from_scale(Vector3(width, 1, len)), Vector3(x, 0.035, cz)))
 				_roads.append(Rect2(x - width, cz - len * 0.5, width * 2.0, len))
 				road_count += 1
 	for k in city.rows_n + 1:
@@ -84,7 +84,7 @@ func _country_roads(radius: float, every: int) -> void:
 			for sg in [-1, 1]:
 				var len2: float = radius - half
 				var cx: float = sg * (half + len2 * 0.5 - 5.0)
-				xfs.append(Transform3D(Basis.from_scale(Vector3(len2, 1, width)), Vector3(cx, 0.025, z)))
+				xfs.append(Transform3D(Basis.from_scale(Vector3(len2, 1, width)), Vector3(cx, 0.035, z)))
 				_roads.append(Rect2(cx - len2 * 0.5, z - width, len2, width * 2.0))
 				road_count += 1
 	var pm := PlaneMesh.new()
@@ -124,7 +124,7 @@ func _fields(cfg: Dictionary, radius: float) -> void:
 				continue
 			var w := fw * _rng.randf_range(0.7, 0.92)
 			var h := fh * _rng.randf_range(0.7, 0.92)
-			xfs.append(Transform3D(Basis.from_scale(Vector3(w, 1, h)), Vector3(x, 0.01, z)))
+			xfs.append(Transform3D(Basis.from_scale(Vector3(w, 1, h)), Vector3(x, -0.035, z)))
 			var col := Color(str(pal[_rng.randi() % pal.size()]))
 			cols.append(col.darkened(_rng.randf() * 0.12))
 			field_count += 1
