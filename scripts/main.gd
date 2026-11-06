@@ -301,6 +301,7 @@ func interact(id: String) -> void:
 		"whiteboard": open_panel(WhiteboardPanel.new(id))
 		"kanban": open_panel(KanbanPanel.new(id))
 		"chat": open_panel(ChatPanel.new(id))
+		"os": open_panel(OSPanel.new(id))
 		"poster": open_panel(PosterPanel.new(id))
 		"library": open_panel(LibraryPanel.new(id))
 		"travel":

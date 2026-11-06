@@ -10,7 +10,7 @@ const DEFS := {
 	"card": {"label": "Fiche", "size": Vector3(0.44, 0.3, 0.02), "panel": "note", "cat": "knowledge", "desc": "Fiche de synthèse au format bristol."},
 	"whiteboard": {"label": "Tableau blanc", "size": Vector3(2.0, 1.2, 0.06), "panel": "whiteboard", "cat": "knowledge", "desc": "Dessin libre, textes, gomme : pour réfléchir en grand."},
 	"kanban": {"label": "Kanban", "size": Vector3(2.4, 1.4, 0.06), "panel": "kanban", "cat": "knowledge", "desc": "Colonnes et cartes pour suivre un projet."},
-	"desk": {"label": "Bureau", "size": Vector3(1.6, 1.25, 0.8), "panel": "chat", "cat": "knowledge", "mount": "floor", "desc": "Bureau avec écran : l'assistant contextuel de la salle."},
+	"desk": {"label": "Bureau", "size": Vector3(1.6, 1.25, 0.8), "panel": "os", "cat": "knowledge", "mount": "floor", "desc": "Bureau avec écran : l'assistant contextuel de la salle."},
 	"library": {"label": "Bibliothèque", "size": Vector3(1.6, 2.2, 0.42), "panel": "library", "cat": "knowledge", "mount": "floor", "desc": "Documents importés (texte, PDF) liés à la salle."},
 	"table": {"label": "Table de travail", "size": Vector3(1.8, 0.76, 0.9), "panel": "", "cat": "furniture", "mount": "floor", "desc": "Grande table claire sur deux piétements."},
 	"orb": {"label": "Conscience (IA)", "size": Vector3(1.3, 2.1, 1.3), "panel": "chat", "cat": "knowledge", "mount": "floor", "desc": "Sphère de conscience liquide : l'IA de la pièce. Parlez-lui (E ou Entrée)."},
