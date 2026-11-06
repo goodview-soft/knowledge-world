@@ -25,7 +25,7 @@ func _ready() -> void:
 	ui_root = Control.new()
 	ui_root.set_anchors_preset(Control.PRESET_FULL_RECT)
 	ui_root.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	ui_root.theme = _make_theme()
+	ui_root.theme = KWTheme.make()
 	layer.add_child(ui_root)
 	hud = KWHud.new()
 	ui_root.add_child(hud)
@@ -82,18 +82,6 @@ func _setup_environment() -> void:
 	we.environment = env
 	add_child(we)
 
-
-func _make_theme() -> Theme:
-	var t := Theme.new()
-	t.default_font_size = 17
-	var sb := StyleBoxFlat.new()
-	sb.bg_color = Color(0.11, 0.11, 0.12, 0.94)
-	sb.set_corner_radius_all(10)
-	sb.set_content_margin_all(16)
-	sb.border_color = Color(1, 1, 1, 0.08)
-	sb.set_border_width_all(1)
-	t.set_stylebox("panel", "PanelContainer", sb)
-	return t
 
 # ------------------------------------------------------------------ salles
 
